@@ -1,0 +1,23 @@
+name: Atualizar Ofertas
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Dá permissão de escrita diretamente no código
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rodar script
+        env:
+          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
+        run: node atualizar_ofertas.js
+      - name: Salvar resultados
+        run: |
+          git config --global user.name 'Bot Promo'
+          git config --global user.email 'bot@github.com'
+          git add ofertas.json
+          git commit -m "Novas ofertas" || exit 0
+          git push
