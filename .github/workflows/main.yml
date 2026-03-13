@@ -6,8 +6,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Dá permissão de escrita diretamente no código
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Rodar script
         env:
           LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
