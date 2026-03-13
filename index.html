@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Promoções Reais | As Melhores Ofertas e Cupons</title>
+    <title>Promoções Reais | Ofertas Magalu Automáticas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -18,22 +18,76 @@
     <header class="bg-blue-700 text-white shadow-xl sticky top-0 z-50">
         <div class="container mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-2">
-                <div class="logo-box bg-yellow-400 text-blue-800 px-3 py-1 rounded-lg font-black text-xl shadow-md">
-                    REAIS
-                </div>
+                <div class="logo-box bg-yellow-400 text-blue-800 px-3 py-1 rounded-lg font-black text-xl shadow-md">REAIS</div>
                 <h1 class="text-2xl font-black tracking-tighter uppercase">Promoções</h1>
             </div>
-            
             <div class="relative w-full md:w-96">
-                <input type="text" id="searchInput" placeholder="Pesquisar produto ou marca..." 
-                    class="w-full p-3 rounded-xl text-slate-800 pl-12 focus:ring-4 focus:ring-yellow-400 outline-none transition">
+                <input type="text" id="searchInput" placeholder="Buscar ofertas automáticas..." 
+                    class="w-full p-3 rounded-xl text-slate-800 pl-12 outline-none focus:ring-4 focus:ring-yellow-400">
                 <i class="fas fa-search absolute left-4 top-4 text-slate-400"></i>
             </div>
         </div>
     </header>
 
-    <div class="bg-white border-b border-slate-200 py-4 overflow-x-auto">
-        <div class="container mx-auto px-4 flex gap-3 whitespace-nowrap">
-            <button onclick="filterPromo('todos')" class="px-5 py-2 rounded-full bg-blue-600 text-white font-bold text-sm shadow-md">Todos</button>
-            <button onclick="filterPromo('eletronicos')" class="px-5 py-2 rounded-full bg-slate-100 hover:bg-blue-100 font-medium text-sm transition text-slate-600">Eletrônicos</button>
-            <button onclick="filterPromo('casa')" class="px-5 py-2 rounded-full bg-slate-100 hover:bg-blue-100 font-medium text
+    <main class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-700">
+                <i class="fas fa-bolt text-yellow-500"></i> Ofertas do Momento (Magalu)
+            </h2>
+            <span id="status" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Atualizado agora</span>
+        </div>
+        
+        <div id="promoGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div class="col-span-full text-center py-20">
+                <i class="fas fa-spinner fa-spin text-3xl text-blue-600 mb-4"></i>
+                <p>Buscando as melhores ofertas na Magalu...</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Função para desenhar os cards na tela
+        function displayPromos(data) {
+            const grid = document.getElementById('promoGrid');
+            grid.innerHTML = data.map(p => `
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 promo-card flex flex-col justify-between">
+                    <div>
+                        <img src="${p.img}" class="w-full h-44 object-contain mb-4 rounded-xl bg-white">
+                        <span class="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded font-bold uppercase">${p.categoria}</span>
+                        <h3 class="font-bold text-slate-800 leading-tight my-2 line-clamp-2 h-10">${p.titulo}</h3>
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="text-2xl font-black text-blue-700 italic">R$ ${p.preco}</span>
+                            <span class="text-xs text-slate-400 line-through">R$ ${p.antigo}</span>
+                        </div>
+                    </div>
+                    <a href="${p.link}" target="_blank" class="block w-full text-center bg-green-500 text-white font-black py-3 rounded-xl hover:bg-green-600 transition shadow-md">
+                        IR PARA A LOJA <i class="fas fa-external-link-alt ml-1 text-[10px]"></i>
+                    </a>
+                </div>
+            `).join('');
+        }
+
+        // FUNÇÃO PRINCIPAL: Tenta ler o arquivo do Robô
+        async function init() {
+            try {
+                // Tenta carregar o arquivo que o seu Robô GitHub vai criar
+                const response = await fetch('ofertas.json');
+                if (!response.ok) throw new Error('Ainda não há ofertas automáticas');
+                const ofertas = await response.json();
+                displayPromos(ofertas);
+            } catch (error) {
+                console.log(error.message);
+                // Se der erro (arquivo não existe ainda), mostra uma lista de espera
+                document.getElementById('promoGrid').innerHTML = `
+                    <div class="col-span-full text-center py-20 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                        <p class="text-slate-500 font-medium">O robô está trabalhando para buscar ofertas Magalu!</p>
+                        <p class="text-sm text-slate-400">Isso pode levar alguns minutos na primeira vez.</p>
+                    </div>
+                `;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
