@@ -1,23 +1,45 @@
-- name: Enviar para o Telegram
+name: Atualizar Ofertas e Telegram
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Rodar script de ofertas
+        env:
+          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
+        run: node atualizar_ofertas.js
+        
+      - name: Enviar para o Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Verifica se o arquivo existe e tem conteúdo
           if [ -s ofertas.json ]; then
-            # Tenta extrair os dados com segurança
-            PROMO_TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0] ? f[0].titulo : 'vazio')")
-            
-            if [ "$PROMO_TITULO" != "vazio" ] && [ "$PROMO_TITULO" != "Buscando novas ofertas Magalu..." ]; then
-              PROMO_PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
-              PROMO_LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
-              
-              MESSAGE="🚀 *OFERTA NOVA NO SITE!* %0A%0A📦 $PROMO_TITULO %0A💰 *R$ $PROMO_PRECO* %0A%0A🔗 *Confira agora:* $PROMO_LINK"
-              
-              curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
-                -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0] && f[0].id !== 0 ? f[0].titulo : 'vazio')")
+            if [ "$TITULO" != "vazio" ]; then
+              PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+              LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+              MESSAGE="🚀 *NOVA OFERTA!*%0A%0A📦 $TITULO%0A💰 *R$ $PRECO*%0A%0A🔗 [Clique aqui para aproveitar]($LINK)"
+              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+                -d chat_id="$TELEGRAM_CHAT_ID" \
                 -d text="$MESSAGE" \
                 -d parse_mode="Markdown"
             else
-              echo "Nenhuma oferta real para enviar agora."
+              echo "Sem ofertas reais para enviar."
             fi
-          else
-            echo "Arquivo ofertas.json está vazio."
           fi
+
+      - name: Salvar resultados no GitHub
+        run: |
+          git config --global user.name 'Bot Promo'
+          git config --global user.email 'bot@github.com'
+          git add ofertas.json
+          git commit -m "Novas ofertas" || exit 0
+          git push
