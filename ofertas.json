@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": 0,
+    "titulo": "Buscando novas ofertas do dia...",
+    "preco": "---",
+    "antigo": "---",
+    "categoria": "Aguarde",
+    "img": "https://via.placeholder.com/200",
+    "link": "#"
+  }
+]
