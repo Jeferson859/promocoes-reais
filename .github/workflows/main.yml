@@ -1,4 +1,4 @@
-name: Atualizar Ofertas
+name: Atualizar Ofertas e Telegram
 on:
   schedule:
     - cron: '0 * * * *'
@@ -7,14 +7,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Dá permissão de escrita diretamente no código
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Rodar script
+      - name: Rodar script de ofertas
         env:
           LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
         run: node atualizar_ofertas.js
-      - name: Salvar resultados
+      - name: Enviar para o Telegram
+        run: |
+          # Pega o título e o link da primeira oferta do arquivo ofertas.json
+          PROMO_TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
+          PROMO_PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+          PROMO_LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+          
+          if [ "$PROMO_TITULO" != "Buscando novas ofertas Magalu..." ]; then
+            MESSAGE="🚀 *OFERTA NOVA NO SITE!* %0A%0A📦 $PROMO_TITULO %0A💰 *R$ $PROMO_PRECO* %0A%0A🔗 *Confira agora:* $PROMO_LINK"
+            curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+              -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+              -d text="$MESSAGE" \
+              -d parse_mode="Markdown"
+          fi
+      - name: Salvar resultados no GitHub
         run: |
           git config --global user.name 'Bot Promo'
           git config --global user.email 'bot@github.com'
