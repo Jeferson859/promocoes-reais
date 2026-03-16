@@ -2,7 +2,7 @@ const fs = require('fs');
 
 async function buscarOfertas() {
     const TOKEN = process.env.LOMADEE_TOKEN;
-    const SOURCE_ID = '38870125'; // Verifique se este ID está correto no seu painel Lomadee
+    const SOURCE_ID = '6ff2699e-ceaa-4fad-a58a-8b91f885485f'; // Verifique se este ID está correto no seu painel Lomadee
     const url = `https://api.lomadee.com/v3/${TOKEN}/offer/_store/5790?sourceId=${SOURCE_ID}&format=json&size=20`;
     
     try {
