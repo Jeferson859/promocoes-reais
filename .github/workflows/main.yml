@@ -1,18 +1,35 @@
-- name: Enviar para o Telegram
+name: Atualizar Ofertas e Telegram
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Rodar script de ofertas
+        env:
+          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
+        run: node atualizar_ofertas.js
+        
+      - name: Enviar para o Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Tenta enviar uma mensagem simples primeiro para testar a conexão
-          RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+          # Envia uma mensagem simples para confirmar a conexão
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="🤖 Robô de Promoções Ativado! O sistema está conectado com sucesso.")
-          
-          echo "Resposta do Telegram: $RESPONSE"
-          
-          if [[ $RESPONSE == *"\"ok\":true"* ]]; then
-            echo "Mensagem enviada com sucesso!"
-          else
-            echo "Erro ao enviar mensagem. Verifique o Token e o ID."
-            exit 1
-          fi
+            -d text="✅ Robô de Promoções Conectado! Verificando novas ofertas..."
+            
+      - name: Salvar resultados no GitHub
+        run: |
+          git config --global user.name 'Bot Promo'
+          git config --global user.email 'bot@github.com'
+          git add ofertas.json
+          git commit -m "Novas ofertas" || exit 0
+          git push
