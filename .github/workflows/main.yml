@@ -1,51 +1,25 @@
-name: Atualizar Ofertas e Telegram
+name: Teste Forçado iPhone
 on:
-  schedule:
-    - cron: '0 * * * *'
   workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       
-      - name: Rodar script de ofertas
-        env:
-          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
-        run: node atualizar_ofertas.js
-        
-      - name: Enviar Oferta para o Telegram
+      - name: Enviar iPhone do Arquivo
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Extrai os dados do arquivo ofertas.json
-          TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0] && f[0].titulo ? f[0].titulo : 'vazio')")
+          # Pega os dados direto do arquivo ofertas.json
+          TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
+          PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+          IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
+          LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
           
-          if [ "$TITULO" != "vazio" ]; then
-            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
-            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
-            IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
-            
-            # Comando de envio com foto
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d photo="$IMG" \
-              -d caption="🔥 *OFERTA DO DIA!* 🔥%0A%0A📦 $TITULO%0A💰 *R$ $PRECO*%0A%0A🔗 [CLIQUE AQUI PARA COMPRAR]($LINK)" \
-              -d parse_mode="Markdown"
-          else
-            # AVISO CASO NÃO TENHA OFERTA (Para teste)
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="⚠️ O robô rodou, mas o arquivo de ofertas estava vazio. Verifique o Token da Lomadee!"
-          fi
-
-      - name: Salvar no GitHub
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add .
-          git commit -m "Atualizando ofertas" || exit 0
-          git push
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d photo="$IMG" \
+            -d caption="🚀 *TESTE DE ENVIO* %0A%0A📦 $TITULO %0A💰 *R$ $PRECO* %0A%0A🔗 [CLIQUE AQUI]($LINK)" \
+            -d parse_mode="Markdown"
