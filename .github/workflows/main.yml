@@ -1,15 +1,49 @@
-name: Teste Telegram
+name: Atualizar Ofertas e Telegram
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *' # Roda sozinho toda hora
+  workflow_dispatch:      # Permite rodar manual
 jobs:
-  testar:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Enviar Mensagem
+      - uses: actions/checkout@v4
+      
+      - name: Rodar script de ofertas
         env:
-          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
+        run: node atualizar_ofertas.js
+        
+      - name: Enviar para o Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-            -d chat_id="$CHAT_ID" \
-            -d text="🚀 Jeferson, se você recebeu isso, o Telegram está configurado certo!"
+          # Pega a primeira oferta do arquivo ofertas.json
+          TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0] && f[0].id !== 0 ? f[0].titulo : 'vazio')")
+          
+          if [ "$TITULO" != "vazio" ]; then
+            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+            MESSAGE="🚀 *NOVA OFERTA NO SITE!*%0A%0A📦 $TITULO%0A💰 *R$ $PRECO*%0A%0A🔗 [Clique aqui para aproveitar]($LINK)"
+            
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="$MESSAGE" \
+              -d parse_mode="Markdown"
+          else
+            # Se não tiver oferta nova, envia apenas um aviso de status (opcional)
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ Robô online! Aguardando novas promoções da Magalu..."
+          fi
+
+      - name: Salvar resultados no GitHub
+        run: |
+          git config --global user.name 'Bot Promo'
+          git config --global user.email 'bot@github.com'
+          git add ofertas.json
+          git commit -m "Atualizando ofertas automaticamente" || exit 0
+          git push
