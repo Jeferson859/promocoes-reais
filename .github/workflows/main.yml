@@ -1,27 +1,13 @@
-name: Envio Garantido
+name: Teste Foto
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
 jobs:
-  envio:
+  postar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Postar Oferta
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Enviar Foto Direto
         run: |
-          # Pega os dados do iPhone que você salvou no ofertas.json
-          TITULO="🔥 TESTE: iPhone 15 Apple 128GB"
-          PRECO="4.899,00"
-          IMG="https://m.media-amazon.com/images/I/71657ZfeZNL._AC_SL1500_.jpg"
-          LINK="https://www.magazineluiza.com.br"
-          
-          curl -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d photo="$IMG" \
-            -d caption="📦 $TITULO %0A💰 R$ $PRECO %0A%0A🔗 [CLIQUE AQUI]($LINK)" \
-            -d parse_mode="Markdown"
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendPhoto" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d photo="https://m.media-amazon.com/images/I/71657ZfeZNL._AC_SL1500_.jpg" \
+            -d caption="Teste de Foto e Texto"
