@@ -1,25 +1,12 @@
-name: Teste Forçado iPhone
+name: Teste Bruto
 on:
   workflow_dispatch:
 jobs:
-  build:
+  envio:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Enviar iPhone do Arquivo
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Grito no Telegram
         run: |
-          # Pega os dados direto do arquivo ofertas.json
-          TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
-          PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
-          IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
-          LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
-          
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d photo="$IMG" \
-            -d caption="🚀 *TESTE DE ENVIO* %0A%0A📦 $TITULO %0A💰 *R$ $PRECO* %0A%0A🔗 [CLIQUE AQUI]($LINK)" \
-            -d parse_mode="Markdown"
+          curl -v -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="Jeferson, se voce ler isso, o GitHub finalmente conectou!"
