@@ -1,14 +1,14 @@
-name: Teste Foto Garantido
+name: Teste Final Garantido
 on:
   workflow_dispatch:
 jobs:
   postar:
     runs-on: ubuntu-latest
     steps:
-      - name: Enviar Foto Direto
+      - name: Enviar Foto e Texto
         run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendPhoto" \
             -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d photo="https://raw.githubusercontent.com/Jeferson859/promocoes-reais/main/index.html" \
-            -d caption="✅ TESTE DE CONEXÃO: O robô agora consegue enviar fotos e textos!" \
-            --fail
+            -d photo="https://i.imgur.com/866uM8r.png" \
+            -d caption="🚀 *SISTEMA ONLINE!* %0A%0AO robô de ofertas do Jeferson está configurado e pronto para postar produtos reais da Lomadee." \
+            -d parse_mode="Markdown"
