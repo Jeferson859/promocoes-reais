@@ -1,12 +1,44 @@
-name: Teste Bruto
+name: Robô de Ofertas Oficial
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *' # Roda sozinho toda hora
+  workflow_dispatch:      # Botão manual
 jobs:
-  envio:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Grito no Telegram
+      - uses: actions/checkout@v4
+      
+      - name: Rodar motor de busca
+        env:
+          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
+        run: node atualizar_ofertas.js || echo "Aguardando API Lomadee"
+        
+      - name: Enviar para o Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -v -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d text="Jeferson, se voce ler isso, o GitHub finalmente conectou!"
+          TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0] && f[0].titulo ? f[0].titulo : 'vazio')")
+          
+          if [ "$TITULO" != "vazio" ]; then
+            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+            IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
+            
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d photo="$IMG" \
+              -d caption="🔥 *OFERTA DO DIA!* 🔥%0A%0A📦 $TITULO%0A💰 *R$ $PRECO*%0A%0A🔗 [CLIQUE AQUI PARA COMPRAR]($LINK)" \
+              -d parse_mode="Markdown"
+          fi
+
+      - name: Salvar progresso
+        run: |
+          git config --global user.name 'bot-promo'
+          git config --global user.email 'bot@github.com'
+          git add .
+          git commit -m "Atualização automática" || exit 0
+          git push
