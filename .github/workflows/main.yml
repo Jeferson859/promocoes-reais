@@ -1,14 +1,44 @@
-name: Teste Final Garantido
+name: Robô de Ofertas Automático
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *' # Roda toda hora
+  workflow_dispatch:      # Botão manual
 jobs:
-  postar:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Enviar Foto e Texto
+      - uses: actions/checkout@v4
+      
+      - name: Buscar na Lomadee
+        env:
+          LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
+        run: node atualizar_ofertas.js || echo "Aguardando aprovação"
+        
+      - name: Enviar para o Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendPhoto" \
-            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d photo="https://i.imgur.com/866uM8r.png" \
-            -d caption="🚀 *SISTEMA ONLINE!* %0A%0AO robô de ofertas do Jeferson está configurado e pronto para postar produtos reais da Lomadee." \
-            -d parse_mode="Markdown"
+          TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0] && f[0].titulo && f[0].id !== '999999' ? f[0].titulo : 'vazio')")
+          
+          if [ "$TITULO" != "vazio" ]; then
+            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+            IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
+            
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d photo="$IMG" \
+              -d caption="🔥 *OFERTA ENCONTRADA!* 🔥%0A%0A📦 $TITULO%0A💰 *R$ $PRECO*%0A%0A🔗 [CLIQUE AQUI PARA COMPRAR]($LINK)" \
+              -d parse_mode="Markdown"
+          fi
+
+      - name: Salvar Arquivos
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'action@github.com'
+          git add .
+          git commit -m "Atualização de ofertas" || exit 0
+          git push
