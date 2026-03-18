@@ -1,34 +1,20 @@
-name: Envio PROMOREAIS
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/10 * * * *'
-
-jobs:
-  postar:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Buscar Produtos
-        run: node atualizar_ofertas.js
-        
-      - name: Enviar ao Telegram
+- name: Enviar ao Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Extração segura dos dados
-          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.titulo || 'Nova Oferta')")
+          # Extração segura com Node
+          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.titulo || 'Oferta PROMOREAIS')")
           PRECO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.preco || '')")
           LINK=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.link || '')")
           IMG=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.img || '')")
 
-          # Mensagem em formato simples
-          MSG="🟡 *${TITULO}*%0A💰 R$ ${PRECO}%0A%0A🛒 *Link:* ${LINK}"
+          # Mensagem usando TAGS HTML (Mais seguro que Markdown)
+          MSG="<b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
 
-          # Comando de envio direto
+          # Envio usando parse_mode=HTML
           curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
             -d photo="$IMG" \
             -d caption="$MSG" \
-            -d parse_mode="Markdown"
+            -d parse_mode="HTML"
