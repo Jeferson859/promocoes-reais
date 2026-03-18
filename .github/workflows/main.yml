@@ -1,20 +1,62 @@
-- name: Enviar ao Telegram
+name: Robô PROMOREAIS Oficial
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Roda automaticamente a cada 10 minutos
+  workflow_dispatch:      # Permite que você rode manualmente pelo botão
+
+jobs:
+  postar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Rodar Script de Busca
+        run: node atualizar_ofertas.js
+
+      - name: Enviar ao Telegram (Modo Seguro HTML)
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Extração segura com Node
-          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.titulo || 'Oferta PROMOREAIS')")
-          PRECO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.preco || '')")
-          LINK=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.link || '')")
-          IMG=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.img || '')")
+          # Extração segura dos dados via Node.js para evitar erros de caractere
+          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.titulo || 'Nova Oferta Encontrada')")
+          PRECO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.preco || 'Consultar Site')")
+          LINK=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.link?.trim() || '')")
+          IMG=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.img?.trim() || '')")
 
-          # Mensagem usando TAGS HTML (Mais seguro que Markdown)
-          MSG="<b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+          # Verifica se existe um link válido antes de tentar enviar
+          if [ -n "$LINK" ]; then
+            # Montagem da Mensagem em HTML (Mais resistente que o Markdown)
+            # %0A é o comando de "pular linha"
+            MSG="<b>🟡 ${TITULO}</b>%0A%0A💰 <b>R$ ${PRECO}</b> à vista%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}%0A%0A⚠️ <i>O preço pode mudar a qualquer momento!</i>"
 
-          # Envio usando parse_mode=HTML
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d photo="$IMG" \
-            -d caption="$MSG" \
-            -d parse_mode="HTML"
+            # Envio para o Telegram usando parse_mode=HTML
+            # Se a foto falhar, o script tenta enviar apenas o texto por segurança
+            RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d photo="$IMG" \
+              -d caption="$MSG" \
+              -d parse_mode="HTML")
+
+            if [[ $RESPONSE != *"\"ok\":true"* ]]; then
+              echo "Falha no envio com foto, tentando apenas texto..."
+              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+                -d chat_id="$TELEGRAM_CHAT_ID" \
+                -d text="$MSG" \
+                -d parse_mode="HTML"
+            fi
+          else
+            echo "Nenhuma oferta nova encontrada para enviar."
+          fi
+
+      - name: Salvar progresso no GitHub
+        run: |
+          git config --global user.name 'bot-promoreais'
+          git config --global user.email 'bot@github.com'
+          git add .
+          git commit -m "Sincronizando base de ofertas" || exit 0
+          git push
