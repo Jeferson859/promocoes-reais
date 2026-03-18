@@ -1,52 +1,49 @@
-const fs = require('fs');
+name: Robô PROMOREAIS Oficial
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Roda a cada 10 minutos
+  workflow_dispatch:
 
-async function buscarOfertasMeli() {
-    const meliAffiliateId = 'daje8667974'; // Seu ID do perfil
-    const meliAppId = '7346131242004348';  // Seu Client ID
-    
-    let todasOfertas = [];
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
 
-    // Categorias de busca para dar volume ao canal
-    const buscas = ['smartphone', 'placa de video', 'monitor gamer', 'ssd'];
+      - name: Rodar Script de Busca
+        run: node atualizar_ofertas.js
 
-    console.log("🔍 Iniciando busca pública no Mercado Livre...");
+      - name: Enviar para o Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Verifica se o arquivo tem ofertas
+          COUNT=$(node -e "try { console.log(require('./ofertas.json').length) } catch(e) { console.log(0) }")
+          
+          if [ "$COUNT" -gt 0 ]; then
+            TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
+            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+            IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
 
-    for (const termo of buscas) {
-        try {
-            // Busca pública (não precisa de token de acesso)
-            const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&sort=relevance&limit=10`;
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            if (data.results && data.results.length > 0) {
-                data.results.forEach(prod => {
-                    // Montagem do link de afiliado com base no seu perfil PROMOREAIS
-                    const linkAfiliado = `${prod.permalink}?matt_tool=${meliAppId}&utm_source=afiliado&utm_medium=telegram&utm_campaign=${meliAffiliateId}`;
-                    
-                    todasOfertas.push({
-                        id: prod.id,
-                        titulo: prod.title,
-                        preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                        link: linkAfiliado,
-                        img: prod.thumbnail.replace("-I.jpg", "-O.jpg") // Imagem maior
-                    });
-                });
-            }
-        } catch (e) {
-            console.log(`❌ Erro ao buscar ${termo}:`, e.message);
-        }
-    }
+            MESSAGE="🟡 *${TITULO}*%0A%0A💰 *R$ ${PRECO}* à vista%0A%0A🛒 *Compre aqui:*%0A${LINK}"
 
-    if (todasOfertas.length > 0) {
-        // Embaralha para não postar sempre a mesma ordem
-        const final = todasOfertas.sort(() => Math.random() - 0.5);
-        fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
-        console.log(`✅ Sucesso! ${final.length} ofertas salvas no ofertas.json`);
-    } else {
-        console.log("⚠️ Nenhuma oferta encontrada na busca pública.");
-        // Cria um arquivo vazio mas válido para não dar erro no main.yml
-        fs.writeFileSync('ofertas.json', JSON.stringify([]));
-    }
-}
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d photo="$IMG" \
+              -d caption="$MESSAGE" \
+              -d parse_mode="Markdown"
+          else
+            echo "Aguardando novas ofertas..."
+          fi
 
-buscarOfertasMeli();
+      - name: Salvar no GitHub
+        run: |
+          git config --global user.name 'bot-promoreais'
+          git config --global user.email 'bot@github.com'
+          git add .
+          git commit -m "update" || exit 0
+          git push
