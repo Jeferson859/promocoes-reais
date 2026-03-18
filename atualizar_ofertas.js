@@ -1,70 +1,52 @@
 const fs = require('fs');
 
-async function buscarOfertasMistas() {
-    const lomadeeToken = process.env.LOMADEE_TOKEN;
-    const sourceId = '6ff2699e-ceaa-4fad-a58a-8b91f885485f';
-    const meliAffiliateId = 'daje8667974'; // Seu novo ID atualizado
-    const meliAppId = '7346131242004348'; // Seu Client ID do ML
+async function buscarOfertasMeli() {
+    const meliAffiliateId = 'daje8667974'; // Seu ID do perfil
+    const meliAppId = '7346131242004348';  // Seu Client ID
     
     let todasOfertas = [];
 
-    console.log("Iniciando busca para Promo_Reais...");
+    // Categorias de busca para dar volume ao canal
+    const buscas = ['smartphone', 'placa de video', 'monitor gamer', 'ssd'];
 
-    // --- 🔵 BUSCA NA LOMADEE (Magalu, Kabum, etc) ---
-    try {
-        const termosLomadee = ['smartphone', 'hardware', 'informatica'];
-        for (const termo of termosLomadee) {
-            const res = await fetch(`https://api.lomadee.com/v3/${lomadeeToken}/offer/_search?sourceId=${sourceId}&keyword=${encodeURIComponent(termo)}&size=12`);
+    console.log("🔍 Iniciando busca pública no Mercado Livre...");
+
+    for (const termo of buscas) {
+        try {
+            // Busca pública (não precisa de token de acesso)
+            const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&sort=relevance&limit=10`;
+            const res = await fetch(url);
             const data = await res.json();
-            if (data.offers) {
-                data.offers.forEach(o => {
+            
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(prod => {
+                    // Montagem do link de afiliado com base no seu perfil PROMOREAIS
+                    const linkAfiliado = `${prod.permalink}?matt_tool=${meliAppId}&utm_source=afiliado&utm_medium=telegram&utm_campaign=${meliAffiliateId}`;
+                    
                     todasOfertas.push({
-                        titulo: `🔵 ${o.name}`,
-                        preco: o.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                        link: o.link,
-                        img: o.thumbnail
+                        id: prod.id,
+                        titulo: prod.title,
+                        preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                        link: linkAfiliado,
+                        img: prod.thumbnail.replace("-I.jpg", "-O.jpg") // Imagem maior
                     });
                 });
             }
+        } catch (e) {
+            console.log(`❌ Erro ao buscar ${termo}:`, e.message);
         }
-    } catch (e) { 
-        console.log("Lomadee: Ainda em análise ou limite atingido."); 
     }
 
-    // --- 🟡 BUSCA NO MERCADO LIVRE (Promo_Reais) ---
-    try {
-        // Busca produtos relevantes e em oferta
-        const resML = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=hardware&sort=relevance&limit=20`);
-        const dataML = await resML.json();
-        
-        if (dataML.results) {
-            dataML.results.forEach(prod => {
-                // Monta o link de afiliado oficial para o perfil Promo_Reais
-                // matt_tool = ID da sua aplicação | campaign = Seu ID de afiliado
-                const linkAfiliado = `${prod.permalink}?matt_tool=${meliAppId}&utm_source=afiliado&utm_medium=telegram&utm_campaign=${meliAffiliateId}`;
-                
-                todasOfertas.push({
-                    titulo: `🟡 [PROMO] ${prod.title}`,
-                    preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                    link: linkAfiliado,
-                    img: prod.thumbnail.replace("-I.jpg", "-O.jpg") // Foto de alta qualidade
-                });
-            });
-        }
-    } catch (e) { 
-        console.log("Erro ao conectar com a API do Mercado Livre."); 
-    }
-
-    // --- FINALIZAÇÃO ---
     if (todasOfertas.length > 0) {
-        // Embaralha as ofertas para o canal ter sempre novidade
+        // Embaralha para não postar sempre a mesma ordem
         const final = todasOfertas.sort(() => Math.random() - 0.5);
-        
         fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
-        console.log(`🔥 Sucesso! ${final.length} ofertas prontas para o canal Promo_Reais.`);
+        console.log(`✅ Sucesso! ${final.length} ofertas salvas no ofertas.json`);
     } else {
-        console.log("⚠️ Nenhuma oferta encontrada. Verifique os Tokens.");
+        console.log("⚠️ Nenhuma oferta encontrada na busca pública.");
+        // Cria um arquivo vazio mas válido para não dar erro no main.yml
+        fs.writeFileSync('ofertas.json', JSON.stringify([]));
     }
 }
 
-buscarOfertasMistas();
+buscarOfertasMeli();
