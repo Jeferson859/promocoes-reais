@@ -1,58 +1,33 @@
-name: Robô de Ofertas Alto Volume
+name: Teste de Raio-X
 on:
-  schedule:
-    - cron: '*/5 * * * *' # Roda a cada 5 minutos para máximo volume
-  workflow_dispatch:      # Permite rodar manualmente pelo botão
-
+  workflow_dispatch:
 jobs:
-  build:
+  debug:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Buscar Novas Ofertas (Lomadee)
+      - uses: actions/checkout@v4
+      
+      - name: Rodar Busca
         env:
           LOMADEE_TOKEN: ${{ secrets.LOMADEE_TOKEN }}
-        run: node atualizar_ofertas.js || echo "Aguardando liberação da API Lomadee..."
+        run: node atualizar_ofertas.js
 
-      - name: Disparar no Telegram
+      - name: Mostrar o que o robô achou
+        run: |
+          echo "=== CONTEÚDO DO ARQUIVO OFERTAS.JSON ==="
+          cat ofertas.json || echo "ARQUIVO VAZIO OU NÃO CRIADO"
+          echo "========================================="
+
+      - name: Tentativa de Envio Direto
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Verifica se o arquivo existe e tem ofertas
-          if [ -s ofertas.json ]; then
-            # Pega a primeira oferta da lista (o script JS já embaralha elas)
-            TITULO=$(node -e "const f=require('./ofertas.json'); console.log(f[0].titulo || 'Produto s/ Nome')")
-            PRECO=$(node -e "const f=require('./ofertas.json'); console.log(f[0].preco || 'Consultar')")
-            LINK=$(node -e "const f=require('./ofertas.json'); console.log(f[0].link || '#')")
-            IMG=$(node -e "const f=require('./ofertas.json'); console.log(f[0].img || 'https://i.imgur.com/866uM8r.png')")
-
-            # Montagem da mensagem estilo Profissional (PC do Fafa)
-            MESSAGE="🔵 *${TITULO}*%0A%0A💰 *R$ ${PRECO}* à vista%0A💳 em até 10x no cartão%0A%0A🛒 *Compre aqui:*%0A${LINK}%0A%0A⚠️ *O preço pode mudar a qualquer momento!*"
-
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d photo="$IMG" \
-              -d caption="$MESSAGE" \
-              -d parse_mode="Markdown"
-          else
-            echo "Nenhuma oferta nova encontrada no momento."
-          fi
-
-      - name: Salvar progresso no GitHub
-        run: |
-          git config --global user.name 'bot-ofertas'
-          git config --global user.email 'bot@github.com'
-          git add .
-          git commit -m "Sincronizando base de ofertas" || exit 0
-          git push
+          # Pega o primeiro título do arquivo
+          TITULO=$(node -e "try { console.log(require('./ofertas.json')[0].titulo) } catch(e) { console.log('ERRO_NA_LEITURA') }")
+          
+          echo "Tentando enviar: $TITULO"
+          
+          curl -i -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="🚨 TESTE REAL: O robô encontrou: $TITULO"
