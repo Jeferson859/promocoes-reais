@@ -3,10 +3,12 @@ const fs = require('fs');
 async function buscarOfertasMistas() {
     const lomadeeToken = process.env.LOMADEE_TOKEN;
     const sourceId = '6ff2699e-ceaa-4fad-a58a-8b91f885485f';
+    const meliClientId = process.env.MELI_CLIENT_ID;
+    const meliClientSecret = process.env.MELI_CLIENT_SECRET;
     
     let todasOfertas = [];
 
-    // --- BUSCA NA LOMADEE (Hardware) ---
+    // --- BUSCA NA LOMADEE ---
     const termosLomadee = ['placa de video', 'processador', 'ssd'];
     for (const termo of termosLomadee) {
         try {
@@ -22,31 +24,35 @@ async function buscarOfertasMistas() {
                     });
                 });
             }
-        } catch (e) { console.log("Lomadee: Aguardando aprovação..."); }
+        } catch (e) { console.log("Lomadee em análise..."); }
     }
 
-    // --- BUSCA NO MERCADO LIVRE (Ofertas Relâmpago) ---
-    // Aqui buscamos produtos com desconto direto na API do ML
+    // --- BUSCA NO MERCADO LIVRE ---
     try {
+        // 1. Busca produtos em oferta/relevantes
         const resML = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=hardware&sort=relevance&limit=15`);
         const dataML = await resML.json();
         
         if (dataML.results) {
-            dataML.results.forEach(prod => {
+            for (const prod of dataML.results) {
+                // Aqui o link ainda é o comum. O Mercado Livre geralmente requer 
+                // que você use o painel deles para gerar o link final de afiliado 
+                // ou use a ferramenta de "Link Shortener" da API deles.
+                
                 todasOfertas.push({
-                    titulo: `🟡 [MERCADO LIVRE] ${prod.title}`,
+                    titulo: `🟡 [ML] ${prod.title}`,
                     preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                    link: prod.permalink, // Depois vamos converter para link de afiliado
-                    img: prod.thumbnail.replace("-I.jpg", "-O.jpg") // Melhora a qualidade da imagem
+                    link: prod.permalink, // Link do produto
+                    img: prod.thumbnail.replace("-I.jpg", "-O.jpg")
                 });
-            });
+            }
         }
-    } catch (e) { console.log("Erro ao buscar no Mercado Livre."); }
+    } catch (e) { console.log("Erro no Mercado Livre."); }
 
     if (todasOfertas.length > 0) {
         const final = todasOfertas.sort(() => Math.random() - 0.5);
         fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
-        console.log(`🚀 Sucesso! ${final.length} ofertas prontas para disparar.`);
+        console.log(`🚀 Sucesso! ${final.length} ofertas prontas.`);
     }
 }
 
