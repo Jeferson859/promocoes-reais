@@ -1,36 +1,46 @@
 const fs = require('fs');
 
-async function buscarOfertasMeli() {
-    const meliAffiliateId = 'daje8667974'; //
-    const meliAppId = '7346131242004348';  //
+async function buscarProdutosReais() {
+    const meliAffiliateId = 'daje8667974'; 
+    const meliAppId = '7346131242004348';  
     let todasOfertas = [];
 
-    try {
-        const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=hardware&limit=10`);
-        const data = await res.json();
-        
-        if (data.results && data.results.length > 0) {
-            data.results.forEach(prod => {
-                todasOfertas.push({
-                    titulo: prod.title,
-                    preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                    link: `${prod.permalink}?matt_tool=${meliAppId}&utm_campaign=${meliAffiliateId}`,
-                    img: prod.thumbnail.replace("-I.jpg", "-O.jpg").trim()
-                });
-            });
-        }
-    } catch (e) { console.log("Erro na busca."); }
+    // Termos de busca que vendem muito no Telegram
+    const buscas = ['placa de video', 'ssd 1tb', 'monitor gamer', 'iphone 15'];
 
-    // Se falhar, gera uma oferta real do ML manualmente para testar o canal
-    if (todasOfertas.length === 0) {
-        todasOfertas.push({
-            titulo: "🔥 Oferta do Dia no Mercado Livre",
-            preco: "Ver no Site",
-            link: `https://www.mercadolivre.com.br?matt_tool=${meliAppId}&utm_campaign=${meliAffiliateId}`,
-            img: "https://http2.mlstatic.com/static/org-img/homesnack/home/logo_off_30_v2.png"
-        });
+    console.log("🔍 Caçando ofertas reais no Mercado Livre...");
+
+    for (const termo of buscas) {
+        try {
+            // Busca os itens mais relevantes e em oferta
+            const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&sort=relevance&limit=15`);
+            const data = await res.json();
+            
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(prod => {
+                    // Monta o link com sua comissão
+                    const linkAfiliado = `${prod.permalink}?matt_tool=${meliAppId}&utm_source=afiliado&utm_medium=telegram&utm_campaign=${meliAffiliateId}`;
+                    
+                    todasOfertas.push({
+                        titulo: prod.title,
+                        preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                        link: linkAfiliado,
+                        img: prod.thumbnail.replace("-I.jpg", "-O.jpg") // Imagem grande
+                    });
+                });
+            }
+        } catch (e) {
+            console.log(`Erro ao buscar ${termo}`);
+        }
     }
 
-    fs.writeFileSync('ofertas.json', JSON.stringify(todasOfertas, null, 2));
+    // Se achou produtos, salva eles. Se não achou, mantém o arquivo pronto.
+    if (todasOfertas.length > 0) {
+        // Embaralha para o canal não ficar repetitivo
+        const final = todasOfertas.sort(() => Math.random() - 0.5);
+        fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
+        console.log(`✅ Sucesso! ${final.length} ofertas reais carregadas.`);
+    }
 }
-buscarOfertasMeli();
+
+buscarProdutosReais();
