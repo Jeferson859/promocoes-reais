@@ -1,45 +1,50 @@
 const fs = require('fs');
 
-async function buscarProdutosReais() {
+async function buscarProdutosMeli() {
     const meliAffiliateId = 'daje8667974'; 
     const meliAppId = '7346131242004348';  
     let todasOfertas = [];
 
-    // Foco total em Hardware e Tecnologia
-    const buscas = ['placa de video nvidia', 'ssd nvme', 'processador ryzen', 'monitor gamer'];
+    // Termos que sempre trazem bons resultados no Mercado Livre
+    const termos = ['iphone', 'ssd kingston', 'placa de video rtx', 'monitor gamer'];
 
-    console.log("🔍 Caçando produtos reais no Mercado Livre...");
+    console.log("🔍 Iniciando busca de produtos reais...");
 
-    for (const termo of buscas) {
+    for (const item of termos) {
         try {
-            const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&sort=relevance&limit=20`;
-            const res = await fetch(url);
-            const data = await res.json();
+            const response = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(item)}&limit=10`);
+            const data = await response.json();
             
             if (data.results && data.results.length > 0) {
                 data.results.forEach(prod => {
-                    // Link de Afiliado PROMOREAIS
-                    const linkAfiliado = `${prod.permalink}?matt_tool=${meliAppId}&utm_source=afiliado&utm_medium=telegram&utm_campaign=${meliAffiliateId}`;
-                    
                     todasOfertas.push({
                         titulo: prod.title,
                         preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                        link: linkAfiliado,
-                        img: prod.thumbnail.replace("-I.jpg", "-O.jpg") // Imagem Grande
+                        // Link com seus IDs de Afiliado PROMOREAIS
+                        link: `${prod.permalink}?matt_tool=${meliAppId}&utm_campaign=${meliAffiliateId}`,
+                        img: prod.thumbnail.replace("-I.jpg", "-O.jpg").trim() // Imagem de alta qualidade
                     });
                 });
             }
         } catch (e) {
-            console.log(`Erro ao buscar ${termo}`);
+            console.log("Erro na busca do termo: " + item);
         }
     }
 
-    if (todasOfertas.length > 0) {
-        // Embaralha para o canal não ficar repetitivo
-        const final = todasOfertas.sort(() => Math.random() - 0.5);
-        fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
-        console.log(`✅ Sucesso! ${final.length} produtos reais salvos.`);
+    // Se a busca falhar, não deixa o arquivo vazio (evita erro de undefined)
+    if (todasOfertas.length === 0) {
+        todasOfertas.push({
+            titulo: "Confira as Ofertas do Dia",
+            preco: "Ver no Site",
+            link: `https://www.mercadolibre.com.br?matt_tool=${meliAppId}&utm_campaign=${meliAffiliateId}`,
+            img: "https://http2.mlstatic.com/static/org-img/homesnack/home/logo_off_30_v2.png"
+        });
     }
+
+    // Embaralha para o canal ter sempre novidade
+    const resultadoFinal = todasOfertas.sort(() => Math.random() - 0.5);
+    fs.writeFileSync('ofertas.json', JSON.stringify(resultadoFinal, null, 2));
+    console.log(`✅ ${resultadoFinal.length} ofertas salvas com sucesso!`);
 }
 
-buscarProdutosReais();
+buscarProdutosMeli();
