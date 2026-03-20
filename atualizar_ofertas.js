@@ -2,7 +2,6 @@ const fs = require('fs');
 const https = require('https');
 const { execSync } = require('child_process');
 
-// ✅ Baixa imagem aguardando finalizar (sem bug de callback)
 function baixarImagem(url, destino) {
     return new Promise((resolve, reject) => {
         const file = fs.createWriteStream(destino);
@@ -26,12 +25,22 @@ async function iniciar() {
     }
 
     try {
-        // 1. Busca produto no Mercado Livre
+        // 1. Busca produto — com User-Agent para evitar bloqueio
         console.log('🔍 Buscando produto...');
-        const res  = await fetch('https://api.mercadolibre.com/sites/MLB/search?q=iphone&limit=1');
-        const data = await res.json();
+        const res = await fetch('https://api.mercadolibre.com/sites/MLB/search?q=iphone&limit=5', {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; bot/1.0)',
+                'Accept': 'application/json'
+            }
+        });
 
+        console.log(`📡 Status da API: ${res.status}`);
+        const data = await res.json();
+        console.log(`📦 Total encontrado: ${data.results ? data.results.length : 0}`);
+
+        // Debug: mostra resposta se vier vazia
         if (!data.results || data.results.length === 0) {
+            console.log('⚠️ Resposta da API:', JSON.stringify(data).slice(0, 500));
             throw new Error('Nenhum produto encontrado.');
         }
 
@@ -41,13 +50,13 @@ async function iniciar() {
         const link   = `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
         const imgUrl = p.thumbnail.replace('-I.jpg', '-J.jpg');
 
-        console.log(`📦 ${titulo} — R$ ${preco}`);
+        console.log(`✅ Produto: ${titulo} — R$ ${preco}`);
 
-        // 2. Baixa a imagem aguardando terminar
+        // 2. Baixa imagem
         await baixarImagem(imgUrl, 'foto.jpg');
         console.log('📸 Imagem baixada!');
 
-        // 3. Monta mensagem e salva em arquivo (evita bug de aspas no shell)
+        // 3. Monta mensagem
         const msg = `🔥 <b>OFERTA DO DIA!</b>\n\n<b>${titulo}</b>\n\n💰 <b>R$ ${preco}</b>\n\n🛒 <b>Compre aqui:</b>\n${link}`;
         fs.writeFileSync('msg.txt', msg);
 
