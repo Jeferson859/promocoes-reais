@@ -1,31 +1,22 @@
-name: Conexão Direta PROMOREAIS
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/15 * * * *'
+name: Postar PROMOREAIS
+on: [workflow_dispatch]
 
 jobs:
   postar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Buscar Produtos ML
+      - name: Buscar
         run: node atualizar_ofertas.js
-        
-      - name: Envio Forçado Telegram
+      - name: Enviar
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Pega o primeiro título e link do arquivo
-          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.titulo || 'Oferta ML')")
-          LINK=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.link || 'https://mercadolivre.com.br')")
-
-          echo "Tentando enviar para: $TELEGRAM_CHAT_ID"
-
-          # Envio de texto puro (Sem foto para não dar erro de link de imagem)
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="🟡 *${TITULO}*%0A%0A🛒 *Link:* ${LINK}" \
-            -d parse_mode="Markdown"
+          TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
+          LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+          
+          # Envio ultra simples: Apenas texto. Se este chegar, o problema era a foto.
+          curl -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+            -d chat_id="$CHAT_ID" \
+            -d text="🟡 PROMOÇÃO REAIS: $TITULO %0A%0A 🛒 Link: $LINK"
