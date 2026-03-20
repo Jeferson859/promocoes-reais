@@ -1,31 +1,21 @@
-name: Robo PROMOREAIS
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'
-
-jobs:
-  postar:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Buscar
-        run: node atualizar_ofertas.js
-
-      - name: Enviar
+- name: Enviar
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          # Extração simples dos dados
           TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
           PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
           LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
           IMG=$(node -e "console.log(require('./temp_oferta.json').img)")
 
-          MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+          # Montagem da mensagem sem tags HTML para evitar erro de fechamento
+          # Usamos o link da imagem direto no início para o Telegram gerar o preview
+          MSG="🟡 *${TITULO}*%0A%0A💰 *R$ ${PRECO}*%0A%0A🛒 *Compre aqui:*%0A${LINK}"
 
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+          # Envio direto com sendPhoto (mais garantido para aparecer a foto)
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="$MSG" \
-            -d parse_mode="HTML"
+            -d photo="$IMG" \
+            -d caption="$MSG" \
+            -d parse_mode="Markdown"
