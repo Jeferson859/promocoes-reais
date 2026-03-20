@@ -1,40 +1,33 @@
 const fs = require('fs');
 
-async function buscarProdutosReais() {
-    const meliAffiliateId = 'daje8667974'; 
-    const meliAppId = '7346131242004348';  
-    let todasOfertas = [];
+async function buscarProdutos() {
+    const meliId = 'daje8667974';
+    const appId = '7346131242004348';
+    let lista = [];
 
-    // Termos que vendem muito
-    const buscas = ['iphone 15', 'placa de video', 'monitor gamer', 'ssd nvme'];
+    // Buscas variadas para ter volume
+    const termos = ['iphone', 'ssd', 'monitor', 'placa de video'];
 
-    console.log("🔍 Buscando produtos para PROMOREAIS...");
-
-    for (const termo of buscas) {
+    for (const t of termos) {
         try {
-            const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&sort=relevance&limit=10`);
+            const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(t)}&limit=5`);
             const data = await res.json();
             
-            if (data.results && data.results.length > 0) {
-                data.results.forEach(prod => {
-                    todasOfertas.push({
-                        titulo: prod.title,
-                        preco: prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                        // LINK COM SEU ID DE AFILIADO
-                        link: `${prod.permalink}?matt_tool=${meliAppId}&utm_campaign=${meliAffiliateId}`,
-                        img: prod.thumbnail.replace("-I.jpg", "-O.jpg").trim()
-                    });
+            data.results.forEach(p => {
+                lista.push({
+                    titulo: p.title,
+                    preco: p.price.toLocaleString('pt-BR'),
+                    link: `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`,
+                    // Força uma imagem limpa e segura
+                    img: p.thumbnail.replace("-I.jpg", "-O.jpg").trim()
                 });
-            }
-        } catch (e) { console.log("Erro na busca"); }
+            });
+        } catch (e) { console.log("Erro no termo: " + t); }
     }
 
-    if (todasOfertas.length > 0) {
-        // Embaralha para o canal ter sempre novidade
-        const final = todasOfertas.sort(() => Math.random() - 0.5);
-        fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
-        console.log(`✅ Sucesso! ${final.length} produtos carregados.`);
-    }
+    // Embaralha e salva
+    const final = lista.sort(() => Math.random() - 0.5);
+    fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
+    console.log("✅ Busca finalizada com " + final.length + " produtos!");
 }
-
-buscarProdutosReais();
+buscarProdutos();
