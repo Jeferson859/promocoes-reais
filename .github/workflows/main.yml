@@ -20,19 +20,24 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Pega os dados com segurança
-          TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
-          PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
-          LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
-          IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
+          # Verifica se o arquivo tem ofertas antes de tentar extrair
+          COUNT=$(node -e "try { console.log(require('./ofertas.json').length) } catch(e) { console.log(0) }")
+          
+          if [ "$COUNT" -gt 0 ]; then
+            TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
+            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
+            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
+            IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
 
-          # Montagem da mensagem com "Imagem Invisível" para gerar o Preview
-          MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+            MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
 
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="$MSG" \
-            -d parse_mode="HTML"
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="$MSG" \
+              -d parse_mode="HTML"
+          else
+            echo "⚠️ Arquivo vazio, pulando envio."
+          fi
 
       - name: Salvar progresso
         run: |
