@@ -1,65 +1,25 @@
-const fs = require('fs');
-const https = require('https');
-const { execSync } = require('child_process');
+name: Bot Ofertas Mercado Livre
 
-// Baixa a imagem e retorna uma Promise
-function baixarImagem(url, destino) {
-    return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(destino);
-        https.get(url, (response) => {
-            response.pipe(file);
-            file.on('finish', () => { file.close(); resolve(); });
-            file.on('error', reject);
-        }).on('error', reject);
-    });
-}
+on:
+  schedule:
+    - cron: '0 * * * *'   # Roda todo início de hora
+  workflow_dispatch:        # Permite rodar manualmente
 
-async function iniciar() {
-    const meliId   = 'daje8667974';
-    const appId    = '7346131242004348';
-    const token    = process.env.TOKEN;
-    const chatId   = process.env.CHAT_ID;
+jobs:
+  postar:
+    runs-on: ubuntu-latest
 
-    if (!token || !chatId) {
-        console.error("❌ TOKEN ou CHAT_ID não definidos!");
-        process.exit(1);
-    }
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
 
-    try {
-        // 1. Busca o produto
-        const res  = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=iphone&limit=1`);
-        const data = await res.json();
-        const p    = data.results[0];
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-        const titulo = p.title;
-        const preco  = p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        const link   = `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
-        const imgUrl = p.thumbnail.replace('-I.jpg', '-J.jpg');
-
-        console.log(`🔍 Produto: ${titulo} — R$ ${preco}`);
-
-        // 2. Baixa a imagem (aguarda terminar!)
-        await baixarImagem(imgUrl, 'foto.jpg');
-        console.log('📸 Imagem baixada!');
-
-        // 3. Monta a mensagem escapando aspas
-        const msg = `<b>${titulo}</b>\\n\\n💰 <b>R$ ${preco}</b>\\n\\n🛒 <b>Compre aqui:</b>\\n${link}`;
-
-        // 4. Envia para o Telegram
-        const comando = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" \
-            -F chat_id="${chatId}" \
-            -F photo="@foto.jpg" \
-            -F caption="${msg}" \
-            -F parse_mode="HTML"`;
-
-        const resultado = execSync(comando).toString();
-        console.log('✅ Postado com sucesso!');
-        console.log(resultado);
-
-    } catch (e) {
-        console.error('❌ Erro: ' + e.message);
-        process.exit(1); // Faz o GitHub Actions marcar como falha
-    }
-}
-
-iniciar();
+      - name: Buscar oferta e postar no Telegram
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: node atualizar_ofertas.js
