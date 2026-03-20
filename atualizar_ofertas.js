@@ -30,40 +30,34 @@ async function renovarToken() {
 async function buscarProduto(mlToken) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
 
-    // 1. Pega highlights da categoria MLB1055 (Celulares)
+    // 1. Pega highlights
     console.log('📈 Buscando highlights...');
     const resHL = await fetch('https://api.mercadolibre.com/highlights/MLB/category/MLB1055', { headers });
-    console.log(`📡 Highlights status: ${resHL.status}`);
-
-    if (!resHL.ok) throw new Error('Highlights falhou: ' + resHL.status);
-
     const hlData = await resHL.json();
     const ids = hlData.content.map(c => c.id).slice(0, 5);
-    console.log(`📦 IDs encontrados: ${ids.join(', ')}`);
+    console.log(`📦 IDs: ${ids.join(', ')}`);
 
-    // 2. Busca detalhes dos itens em lote
-    const resItems = await fetch(`https://api.mercadolibre.com/items?ids=${ids.join(',')}&attributes=id,title,price,original_price,thumbnail,permalink`, { headers });
-    console.log(`📡 Items status: ${resItems.status}`);
+    // 2. Busca itens em lote
+    const resItems = await fetch(`https://api.mercadolibre.com/items?ids=${ids.join(',')}`, { headers });
+    const itemsRaw = await resItems.json();
 
-    if (!resItems.ok) throw new Error('Items falhou: ' + resItems.status);
+    // DEBUG: mostra estrutura do primeiro item
+    console.log('Estrutura item[0]:', JSON.stringify(itemsRaw[0]).slice(0, 400));
 
-    const itemsData = await resItems.json();
-    console.log(`✅ ${itemsData.length} itens retornados`);
+    // 3. Extrai itens — a API retorna array direto ou com body
+    const itens = itemsRaw
+        .map(r => r.body || r)
+        .filter(i => i && i.price && i.title);
 
-    // 3. Filtra itens válidos e pega o de maior desconto
-    const itens = itemsData
-        .filter(r => r.code === 200 && r.body && r.body.price)
-        .map(r => r.body);
+    console.log(`✅ ${itens.length} itens válidos`);
+    if (itens.length === 0) throw new Error('Nenhum item válido');
 
-    if (itens.length === 0) throw new Error('Nenhum item válido retornado');
-
-    const melhor = itens.reduce((m, a) => {
+    // 4. Pega o de maior desconto
+    return itens.reduce((m, a) => {
         const dA = a.original_price ? (a.original_price - a.price) / a.original_price : 0;
         const dM = m.original_price ? (m.original_price - m.price) / m.original_price : 0;
         return dA > dM ? a : m;
     });
-
-    return melhor;
 }
 
 async function iniciar() {
