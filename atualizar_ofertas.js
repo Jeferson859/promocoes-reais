@@ -30,34 +30,57 @@ async function renovarToken() {
 async function buscarProduto(mlToken) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
 
-    // 1. Pega highlights
+    // 1. Pega highlights — retorna IDs de catálogo (ex: MLB57767498)
     console.log('📈 Buscando highlights...');
     const resHL = await fetch('https://api.mercadolibre.com/highlights/MLB/category/MLB1055', { headers });
     const hlData = await resHL.json();
-    const ids = hlData.content.map(c => c.id).slice(0, 5);
-    console.log(`📦 IDs: ${ids.join(', ')}`);
+    const catalogIds = hlData.content.map(c => c.id).slice(0, 3);
+    console.log(`📦 Catálogos: ${catalogIds.join(', ')}`);
 
-    // 2. Busca itens em lote
-    const resItems = await fetch(`https://api.mercadolibre.com/items?ids=${ids.join(',')}`, { headers });
-    const itemsRaw = await resItems.json();
+    // 2. Para cada catálogo, busca o produto via /products/{id}
+    for (const catId of catalogIds) {
+        console.log(`🔍 Buscando produto do catálogo ${catId}...`);
+        const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
+        console.log(`📡 Product status: ${resProd.status}`);
 
-    // DEBUG: mostra estrutura do primeiro item
-    console.log('Estrutura item[0]:', JSON.stringify(itemsRaw[0]).slice(0, 400));
+        if (resProd.ok) {
+            const prod = await resProd.json();
+            console.log(`📦 Produto: ${prod.name}`);
 
-    // 3. Extrai itens — a API retorna array direto ou com body
-    const itens = itemsRaw
-        .map(r => r.body || r)
-        .filter(i => i && i.price && i.title);
+            // 3. Busca o item à venda com melhor preço via buy_box_winner
+            const resBuy = await fetch(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
+            console.log(`📡 Items status: ${resBuy.status}`);
 
-    console.log(`✅ ${itens.length} itens válidos`);
-    if (itens.length === 0) throw new Error('Nenhum item válido');
+            if (resBuy.ok) {
+                const buyData = await resBuy.json();
+                console.log('Buy data:', JSON.stringify(buyData).slice(0, 300));
 
-    // 4. Pega o de maior desconto
-    return itens.reduce((m, a) => {
-        const dA = a.original_price ? (a.original_price - a.price) / a.original_price : 0;
-        const dM = m.original_price ? (m.original_price - m.price) / m.original_price : 0;
-        return dA > dM ? a : m;
-    });
+                if (buyData.results && buyData.results.length > 0) {
+                    const item = buyData.results[0];
+                    return {
+                        title: prod.name || item.title,
+                        price: item.price,
+                        original_price: item.original_price,
+                        thumbnail: prod.pictures?.[0]?.url || item.thumbnail,
+                        permalink: item.permalink
+                    };
+                }
+            }
+
+            // Fallback: usa dados do próprio produto do catálogo
+            if (prod.buy_box_winner) {
+                return {
+                    title: prod.name,
+                    price: prod.buy_box_winner.price,
+                    original_price: null,
+                    thumbnail: prod.pictures?.[0]?.url,
+                    permalink: `https://www.mercadolivre.com.br/p/${catId}`
+                };
+            }
+        }
+    }
+
+    throw new Error('Nenhum produto encontrado nos catálogos');
 }
 
 async function iniciar() {
@@ -79,7 +102,7 @@ async function iniciar() {
             ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
             : null;
         const link   = `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
-        const imgUrl = p.thumbnail.replace('-I.jpg', '-J.jpg');
+        const imgUrl = (p.thumbnail || '').replace('-I.jpg', '-J.jpg');
 
         console.log(`✅ Produto: ${titulo} — R$ ${preco}`);
 
