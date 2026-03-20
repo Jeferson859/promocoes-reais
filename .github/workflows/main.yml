@@ -1,24 +1,8 @@
-name: Robô PROMOREAIS Oficial
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'
-
-jobs:
-  postar:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Buscar Produto
-        run: node atualizar_ofertas.js
-
-      - name: Enviar ao Telegram
+- name: Enviar ao Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Verifica se o arquivo temporário existe
           if [ -f "temp_oferta.json" ]; then
             TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
             PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
@@ -32,5 +16,5 @@ jobs:
               -d text="$MSG" \
               -d parse_mode="HTML"
           else
-            echo "Nenhuma oferta para enviar agora."
+            echo "Erro crítico: Arquivo temp_oferta.json não foi criado."
           fi
