@@ -1,25 +1,21 @@
-name: Bot Ofertas Mercado Livre
+name: Gerar Token ML
 
 on:
-  schedule:
-    - cron: '0 * * * *'   # Roda todo início de hora
-  workflow_dispatch:        # Permite rodar manualmente
+  workflow_dispatch:
+    inputs:
+      code:
+        description: 'Cole aqui o code TG-XXXXXXXXXX'
+        required: true
 
 jobs:
-  postar:
+  gerar_token:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout do repositório
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Buscar oferta e postar no Telegram
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: node atualizar_ofertas.js
+      - name: Gerar Access Token
+        run: |
+          curl -X POST "https://api.mercadolivre.com/oauth/token" \
+            -d "grant_type=authorization_code" \
+            -d "client_id=7346131242004348" \
+            -d "client_secret=${{ secrets.ML_SECRET }}" \
+            -d "code=${{ github.event.inputs.code }}" \
+            -d "redirect_uri=https://leferson859.github.io/promocoes-reais"
