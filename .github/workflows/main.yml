@@ -2,17 +2,15 @@ name: Robô PROMOREAIS Oficial
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *'
 
 jobs:
   postar:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rodar JS
+      - name: Buscar Produto
         run: node atualizar_ofertas.js
 
       - name: Enviar ao Telegram
@@ -20,14 +18,12 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Verifica se o arquivo tem ofertas antes de tentar extrair
-          COUNT=$(node -e "try { console.log(require('./ofertas.json').length) } catch(e) { console.log(0) }")
-          
-          if [ "$COUNT" -gt 0 ]; then
-            TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
-            PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
-            LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
-            IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
+          # Verifica se o arquivo temporário existe
+          if [ -f "temp_oferta.json" ]; then
+            TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
+            PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
+            LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
+            IMG=$(node -e "console.log(require('./temp_oferta.json').img)")
 
             MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
 
@@ -36,13 +32,5 @@ jobs:
               -d text="$MSG" \
               -d parse_mode="HTML"
           else
-            echo "⚠️ Arquivo vazio, pulando envio."
+            echo "Nenhuma oferta para enviar agora."
           fi
-
-      - name: Salvar progresso
-        run: |
-          git config --global user.name 'bot-promoreais'
-          git config --global user.email 'bot@github.com'
-          git add .
-          git commit -m "update" || exit 0
-          git push
