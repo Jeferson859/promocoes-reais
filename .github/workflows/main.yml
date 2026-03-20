@@ -10,28 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Buscar Produto
-        run: node atualizar_ofertas.js
-
-      - name: Baixar Imagem do Produto
-        run: |
-          IMG_URL=$(node -e "console.log(require('./temp_oferta.json').img)")
-          curl -s "$IMG_URL" --output foto_produto.jpg
-
-      - name: Enviar ao Telegram (Igual Profissional)
+      - name: Rodar Motor do Robo
         env:
           TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
-          PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
-          LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
-
-          MSG="<b>${TITULO}</b>%0A%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
-
-          # Envio do ARQUIVO da foto (isso evita o erro de 'wrong type')
-          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendPhoto" \
-            -F chat_id="$CHAT_ID" \
-            -F photo="@foto_produto.jpg" \
-            -F caption="$MSG" \
-            -F parse_mode="HTML"
+        run: node atualizar_ofertas.js
