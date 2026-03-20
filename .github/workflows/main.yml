@@ -1,22 +1,44 @@
-name: Postar PROMOREAIS
-on: [workflow_dispatch]
+name: Robô PROMOREAIS Oficial
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   postar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Buscar
+
+      - name: Buscar Produtos
         run: node atualizar_ofertas.js
-      - name: Enviar
+
+      - name: Enviar ao Telegram
         env:
-          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          # Extração dos dados via Node
           TITULO=$(node -e "console.log(require('./ofertas.json')[0].titulo)")
+          PRECO=$(node -e "console.log(require('./ofertas.json')[0].preco)")
           LINK=$(node -e "console.log(require('./ofertas.json')[0].link)")
-          
-          # Envio ultra simples: Apenas texto. Se este chegar, o problema era a foto.
-          curl -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-            -d chat_id="$CHAT_ID" \
-            -d text="🟡 PROMOÇÃO REAIS: $TITULO %0A%0A 🛒 Link: $LINK"
+          IMG=$(node -e "console.log(require('./ofertas.json')[0].img)")
+
+          MSG="<b>🟡 ${TITULO}</b>%0A%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+
+          # Envio com FOTO
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d photo="$IMG" \
+            -d caption="$MSG" \
+            -d parse_mode="HTML"
+
+      - name: Salvar no GitHub
+        run: |
+          git config --global user.name 'bot-promoreais'
+          git config --global user.email 'bot@github.com'
+          git add .
+          git commit -m "update" || exit 0
+          git push
