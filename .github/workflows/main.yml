@@ -1,8 +1,6 @@
 name: Robo PROMOREAIS
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'
 
 jobs:
   postar:
@@ -10,27 +8,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Buscar
+      - name: Buscar Produto
         run: node atualizar_ofertas.js
 
       - name: Enviar
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Extração dos dados via Node
+          # Pega os dados do arquivo gerado pelo JS
           TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
           PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
           LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
           IMG=$(node -e "console.log(require('./temp_oferta.json').img)")
 
-          # MENSAGEM EM HTML (Mais resistente a erros)
-          # Usamos tags <b> para negrito e 🛒 para ícones
-          MSG="<b>🟡 ${TITULO}</b>%0A%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
-
-          # Envio da Foto com legenda
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d photo="$IMG" \
-            -d caption="$MSG" \
-            -d parse_mode="HTML"
+          # Envio direto (Igual ao que você fez no navegador)
+          curl -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+            -d chat_id="$CHAT_ID" \
+            -d text="🟡 ${TITULO}%0A💰 R$ ${PRECO}%0A%0A🛒 Link: ${LINK}"
