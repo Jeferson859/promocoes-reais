@@ -13,7 +13,7 @@ jobs:
       - name: Buscar Produto
         run: node atualizar_ofertas.js
 
-      - name: Enviar ao Telegram
+      - - name: Enviar ao Telegram
         env:
           TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -23,12 +23,11 @@ jobs:
           LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
           IMG=$(node -e "console.log(require('./temp_oferta.json').img)")
 
-          # MENSAGEM HTML COM FOTO
-          MSG="<b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+          # Truque: Colocamos a imagem como um link invisível no começo
+          # Assim o Telegram mostra a foto sem dar erro de formato
+          MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
 
-          # Tentativa com foto (sendPhoto)
-          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendPhoto" \
+          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
             -d chat_id="$CHAT_ID" \
-            -d photo="$IMG" \
-            -d caption="$MSG" \
+            -d text="$MSG" \
             -d parse_mode="HTML"
