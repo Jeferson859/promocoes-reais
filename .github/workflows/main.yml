@@ -1,45 +1,31 @@
-name: Robô PROMOREAIS Automático
+name: Conexão Direta PROMOREAIS
 on:
-  schedule:
-    - cron: '*/15 * * * *' # Roda a cada 15 minutos
   workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
 
 jobs:
   postar:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Executar Busca de Ofertas
+      
+      - name: Buscar Produtos ML
         run: node atualizar_ofertas.js
-
-      - name: Enviar para o Telegram
+        
+      - name: Envio Forçado Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Extração segura dos dados do primeiro item da lista
-          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0].titulo)")
-          PRECO=$(node -e "const d=require('./ofertas.json'); console.log(d[0].preco)")
-          LINK=$(node -e "const d=require('./ofertas.json'); console.log(d[0].link)")
-          IMG=$(node -e "const d=require('./ofertas.json'); console.log(d[0].img)")
+          # Pega o primeiro título e link do arquivo
+          TITULO=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.titulo || 'Oferta ML')")
+          LINK=$(node -e "const d=require('./ofertas.json'); console.log(d[0]?.link || 'https://mercadolivre.com.br')")
 
-          # Mensagem formatada em HTML (mais estável para links longos)
-          MSG="<b>🟡 ${TITULO}</b>%0A%0A💰 <b>R$ ${PRECO}</b> à vista%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+          echo "Tentando enviar para: $TELEGRAM_CHAT_ID"
 
-          # Envio da Foto com a Legenda
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+          # Envio de texto puro (Sem foto para não dar erro de link de imagem)
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d photo="$IMG" \
-            -d caption="$MSG" \
-            -d parse_mode="HTML"
-
-      - name: Salvar Histórico no GitHub
-        run: |
-          git config --global user.name 'bot-promoreais'
-          git config --global user.email 'bot@github.com'
-          git add .
-          git commit -m "Atualização de ofertas" || exit 0
-          git push
+            -d text="🟡 *${TITULO}*%0A%0A🛒 *Link:* ${LINK}" \
+            -d parse_mode="Markdown"
