@@ -5,29 +5,40 @@ async function buscarProdutos() {
     const appId = '7346131242004348';
     let lista = [];
 
-    // Buscas variadas para ter volume
-    const termos = ['iphone', 'ssd', 'monitor', 'placa de video'];
+    console.log("🔍 Buscando no Mercado Livre...");
 
-    for (const t of termos) {
-        try {
-            const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(t)}&limit=5`);
-            const data = await res.json();
-            
-            data.results.forEach(p => {
-                lista.push({
-                    titulo: p.title,
-                    preco: p.price.toLocaleString('pt-BR'),
-                    link: `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`,
-                    // Força uma imagem limpa e segura
-                    img: p.thumbnail.replace("-I.jpg", "-O.jpg").trim()
-                });
-            });
-        } catch (e) { console.log("Erro no termo: " + t); }
+    try {
+        // Busca direta e simples
+        const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=smartphone&limit=10`);
+        const data = await res.json();
+        
+        if (data.results && data.results.length > 0) {
+            lista = data.results.map(p => ({
+                titulo: p.title,
+                preco: p.price.toLocaleString('pt-BR'),
+                link: `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`,
+                img: p.thumbnail.replace("-I.jpg", "-O.jpg").trim()
+            }));
+            console.log(`✅ Achei ${lista.length} produtos!`);
+        } else {
+            console.log("⚠️ API não retornou produtos.");
+        }
+    } catch (e) { 
+        console.log("❌ Erro na busca:", e.message); 
     }
 
-    // Embaralha e salva
-    const final = lista.sort(() => Math.random() - 0.5);
-    fs.writeFileSync('ofertas.json', JSON.stringify(final, null, 2));
-    console.log("✅ Busca finalizada com " + final.length + " produtos!");
+    // Se a lista estiver vazia por erro da API, coloca um item de segurança para o robô não travar
+    if (lista.length === 0) {
+        lista.push({
+            titulo: "Confira as Ofertas do Dia",
+            preco: "Ver no Site",
+            link: `https://www.mercadolivre.com.br?matt_tool=${appId}&utm_campaign=${meliId}`,
+            img: "https://http2.mlstatic.com/static/org-img/homesnack/home/logo_off_30_v2.png"
+        });
+    }
+
+    fs.writeFileSync('ofertas.json', JSON.stringify(lista, null, 2));
+    console.log("💾 Arquivo ofertas.json salvo!");
 }
+
 buscarProdutos();
