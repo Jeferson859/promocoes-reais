@@ -4,9 +4,9 @@ const { execSync } = require('child_process');
 
 function baixarImagem(url, destino) {
     return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(destino);
         const req = (u) => https.get(u, (res) => {
             if (res.statusCode === 301 || res.statusCode === 302) return req(res.headers.location);
+            const file = fs.createWriteStream(destino);
             res.pipe(file);
             file.on('finish', () => { file.close(); resolve(); });
             file.on('error', reject);
@@ -30,52 +30,40 @@ async function renovarToken() {
 async function buscarProduto(mlToken) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
 
-    // 1. Pega tendências (retorna 200 ✅)
-    console.log('📈 Buscando tendências...');
-    const resTrends = await fetch('https://api.mercadolibre.com/trends/MLB', { headers });
-    const trends = await resTrends.json();
-    console.log(`📊 ${trends.length} tendências encontradas`);
+    // 1. Pega highlights da categoria MLB1055 (Celulares)
+    console.log('📈 Buscando highlights...');
+    const resHL = await fetch('https://api.mercadolibre.com/highlights/MLB/category/MLB1055', { headers });
+    console.log(`📡 Highlights status: ${resHL.status}`);
 
-    // 2. Para cada tendência, tenta pegar o item direto pela URL da tendência
-    for (const trend of trends.slice(0, 5)) {
-        const keyword = trend.keyword;
-        console.log(`🔍 Tentando: ${keyword}`);
+    if (!resHL.ok) throw new Error('Highlights falhou: ' + resHL.status);
 
-        // Busca usando o endpoint de multiget por keyword via highlights
-        const resHL = await fetch(
-            `https://api.mercadolibre.com/highlights/MLB/category/MLB1055`,
-            { headers }
-        );
-        console.log(`📡 Highlights status: ${resHL.status}`);
+    const hlData = await resHL.json();
+    const ids = hlData.content.map(c => c.id).slice(0, 5);
+    console.log(`📦 IDs encontrados: ${ids.join(', ')}`);
 
-        if (resHL.ok) {
-            const hlData = await resHL.json();
-            console.log('Highlights:', JSON.stringify(hlData).slice(0, 300));
+    // 2. Busca detalhes dos itens em lote
+    const resItems = await fetch(`https://api.mercadolibre.com/items?ids=${ids.join(',')}&attributes=id,title,price,original_price,thumbnail,permalink`, { headers });
+    console.log(`📡 Items status: ${resItems.status}`);
 
-            if (hlData.content && hlData.content.length > 0) {
-                const itemId = hlData.content[0];
-                const resItem = await fetch(`https://api.mercadolibre.com/items/${itemId}`, { headers });
-                console.log(`📡 Item status: ${resItem.status}`);
-                if (resItem.ok) {
-                    const item = await resItem.json();
-                    return item;
-                }
-            }
-        }
-        break;
-    }
+    if (!resItems.ok) throw new Error('Items falhou: ' + resItems.status);
 
-    // 3. Fallback: busca item diretamente por ID conhecido
-    console.log('🔄 Tentando item direto...');
-    const resItem = await fetch('https://api.mercadolibre.com/items/MLB1414881315', { headers });
-    console.log(`📡 Item direto status: ${resItem.status}`);
-    if (resItem.ok) {
-        const item = await resItem.json();
-        console.log('Item:', item.title);
-        return item;
-    }
+    const itemsData = await resItems.json();
+    console.log(`✅ ${itemsData.length} itens retornados`);
 
-    throw new Error('Todos os endpoints falharam');
+    // 3. Filtra itens válidos e pega o de maior desconto
+    const itens = itemsData
+        .filter(r => r.code === 200 && r.body && r.body.price)
+        .map(r => r.body);
+
+    if (itens.length === 0) throw new Error('Nenhum item válido retornado');
+
+    const melhor = itens.reduce((m, a) => {
+        const dA = a.original_price ? (a.original_price - a.price) / a.original_price : 0;
+        const dM = m.original_price ? (m.original_price - m.price) / m.original_price : 0;
+        return dA > dM ? a : m;
+    });
+
+    return melhor;
 }
 
 async function iniciar() {
@@ -89,15 +77,15 @@ async function iniciar() {
         const p = await buscarProduto(mlToken);
 
         const titulo        = p.title;
-        const preco         = (p.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const preco         = p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         const precoOriginal = p.original_price
             ? p.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
             : null;
         const desconto = p.original_price
             ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
             : null;
-        const link   = `https://www.mercadolivre.com.br/p/${p.id}?matt_tool=${appId}&utm_campaign=${meliId}`;
-        const imgUrl = (p.thumbnail || p.pictures?.[0]?.url || '').replace('-I.jpg', '-J.jpg');
+        const link   = `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
+        const imgUrl = p.thumbnail.replace('-I.jpg', '-J.jpg');
 
         console.log(`✅ Produto: ${titulo} — R$ ${preco}`);
 
