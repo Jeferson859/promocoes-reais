@@ -1,20 +1,31 @@
-- name: Enviar ao Telegram
+name: Robo PROMOREAIS
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+jobs:
+  postar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buscar
+        run: node atualizar_ofertas.js
+
+      - name: Enviar
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -f "temp_oferta.json" ]; then
-            TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
-            PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
-            LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
-            IMG=$(node -e "console.log(require('./temp_oferta.json').img)")
+          TITULO=$(node -e "console.log(require('./temp_oferta.json').titulo)")
+          PRECO=$(node -e "console.log(require('./temp_oferta.json').preco)")
+          LINK=$(node -e "console.log(require('./temp_oferta.json').link)")
+          IMG=$(node -e "console.log(require('./temp_oferta.json').img)")
 
-            MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
+          MSG="<a href='$IMG'>&#8205;</a><b>🟡 ${TITULO}</b>%0A💰 <b>R$ ${PRECO}</b>%0A%0A🛒 <b>Compre aqui:</b>%0A${LINK}"
 
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="$MSG" \
-              -d parse_mode="HTML"
-          else
-            echo "Erro crítico: Arquivo temp_oferta.json não foi criado."
-          fi
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="$MSG" \
+            -d parse_mode="HTML"
