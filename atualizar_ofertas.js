@@ -2,6 +2,15 @@ const fs = require('fs');
 const https = require('https');
 const { execSync } = require('child_process');
 
+// Categorias para rotacionar a cada hora
+const CATEGORIAS = [
+    'MLB1055',  // Celulares
+    'MLB1648',  // Computadores
+    'MLB1000',  // Eletrônicos
+    'MLB1144',  // TVs
+    'MLB1246',  // Áudio
+];
+
 function baixarImagem(url, destino) {
     return new Promise((resolve, reject) => {
         const req = (u) => https.get(u, (res) => {
@@ -29,65 +38,79 @@ async function renovarToken() {
 
 async function buscarProduto(mlToken) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
+    const meliId = 'daje8667974';
+    const appId  = '7346131242004348';
 
-    // 1. Pega highlights — retorna IDs de catálogo (ex: MLB57767498)
-    console.log('📈 Buscando highlights...');
-    const resHL = await fetch('https://api.mercadolibre.com/highlights/MLB/category/MLB1055', { headers });
+    // Rotaciona categoria pela hora atual
+    const hora = new Date().getHours();
+    const categoria = CATEGORIAS[hora % CATEGORIAS.length];
+    console.log(`📂 Categoria: ${categoria} (hora ${hora})`);
+
+    // 1. Pega highlights da categoria
+    const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${categoria}`, { headers });
     const hlData = await resHL.json();
-    const catalogIds = hlData.content.map(c => c.id).slice(0, 3);
-    console.log(`📦 Catálogos: ${catalogIds.join(', ')}`);
+    const catalogIds = hlData.content.map(c => c.id);
+    console.log(`📦 ${catalogIds.length} catálogos encontrados`);
 
-    // 2. Para cada catálogo, busca o produto via /products/{id}
-    for (const catId of catalogIds) {
-        console.log(`🔍 Buscando produto do catálogo ${catId}...`);
-        const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
-        console.log(`📡 Product status: ${resProd.status}`);
+    // Seleciona um catálogo diferente baseado nos minutos (muda a cada execução)
+    const minutos = new Date().getMinutes();
+    const idx = minutos % catalogIds.length;
+    const catId = catalogIds[idx];
+    console.log(`🎯 Catálogo selecionado: ${catId} (índice ${idx})`);
 
-        if (resProd.ok) {
-            const prod = await resProd.json();
-            console.log(`📦 Produto: ${prod.name}`);
+    // 2. Busca dados do produto no catálogo
+    const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
+    console.log(`📡 Product status: ${resProd.status}`);
+    if (!resProd.ok) throw new Error(`Product ${catId} falhou: ${resProd.status}`);
+    const prod = await resProd.json();
 
-            // 3. Busca o item à venda com melhor preço via buy_box_winner
-            const resBuy = await fetch(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
-            console.log(`📡 Items status: ${resBuy.status}`);
+    // 3. Busca itens à venda desse catálogo
+    const resItems = await fetch(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
+    console.log(`📡 Items status: ${resItems.status}`);
 
-            if (resBuy.ok) {
-                const buyData = await resBuy.json();
-                console.log('Buy data:', JSON.stringify(buyData).slice(0, 300));
+    let permalink = `https://www.mercadolivre.com.br/p/${catId}?matt_tool=${appId}&utm_campaign=${meliId}`;
+    let preco = null;
+    let precoOriginal = null;
 
-                if (buyData.results && buyData.results.length > 0) {
-                    const item = buyData.results[0];
-                    return {
-                        title: prod.name || item.title,
-                        price: item.price,
-                        original_price: item.original_price,
-                        thumbnail: prod.pictures?.[0]?.url || item.thumbnail,
-                        permalink: item.permalink
-                    };
-                }
-            }
-
-            // Fallback: usa dados do próprio produto do catálogo
-            if (prod.buy_box_winner) {
-                return {
-                    title: prod.name,
-                    price: prod.buy_box_winner.price,
-                    original_price: null,
-                    thumbnail: prod.pictures?.[0]?.url,
-                    permalink: `https://www.mercadolivre.com.br/p/${catId}`
-                };
+    if (resItems.ok) {
+        const itemsData = await resItems.json();
+        if (itemsData.results && itemsData.results.length > 0) {
+            const item = itemsData.results[0];
+            preco = item.price;
+            precoOriginal = item.original_price;
+            // ✅ Link correto com afiliado
+            if (item.permalink) {
+                permalink = `${item.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
             }
         }
     }
 
-    throw new Error('Nenhum produto encontrado nos catálogos');
+    // Fallback de preço via buy_box_winner
+    if (!preco && prod.buy_box_winner) {
+        preco = prod.buy_box_winner.price;
+    }
+
+    if (!preco) throw new Error('Preço não encontrado para ' + catId);
+
+    const imgUrl = (prod.pictures?.[0]?.url || '').replace('-O.jpg', '-J.jpg').replace('-I.jpg', '-J.jpg');
+
+    return {
+        title: prod.name,
+        price: preco,
+        original_price: precoOriginal,
+        thumbnail: imgUrl,
+        permalink: permalink
+    };
 }
 
 async function iniciar() {
     const token  = process.env.TELEGRAM_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
-    const meliId = 'daje8667974';
-    const appId  = '7346131242004348';
+
+    if (!token || !chatId) {
+        console.error('❌ TELEGRAM_TOKEN ou TELEGRAM_CHAT_ID não definidos!');
+        process.exit(1);
+    }
 
     try {
         const mlToken = await renovarToken();
@@ -101,12 +124,11 @@ async function iniciar() {
         const desconto = p.original_price
             ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
             : null;
-        const link   = `${p.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
-        const imgUrl = (p.thumbnail || '').replace('-I.jpg', '-J.jpg');
 
         console.log(`✅ Produto: ${titulo} — R$ ${preco}`);
+        console.log(`🔗 Link: ${p.permalink}`);
 
-        await baixarImagem(imgUrl, 'foto.jpg');
+        await baixarImagem(p.thumbnail, 'foto.jpg');
         console.log('📸 Imagem baixada!');
 
         let msg = `🔥 <b>OFERTA DO DIA!</b>\n\n<b>${titulo}</b>\n\n`;
@@ -116,7 +138,7 @@ async function iniciar() {
         } else {
             msg += `💰 <b>R$ ${preco}</b>\n\n`;
         }
-        msg += `🛒 <b>Compre aqui:</b>\n${link}`;
+        msg += `🛒 <a href="${p.permalink}">Compre aqui</a>`;
 
         fs.writeFileSync('msg.txt', msg);
 
