@@ -1,0 +1,16 @@
+name: Testar Lomadee
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testar ofertas Lomadee
+        run: |
+          echo "=== Testando ofertas ==="
+          curl -s "https://api.lomadee.com/v3/mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_/offer/_search?sourceId=2324685&size=3"
+          echo ""
+          echo "=== Testando cupons ==="
+          curl -s "https://api.lomadee.com/v3/mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_/coupon/_search?sourceId=2324685&size=3"
