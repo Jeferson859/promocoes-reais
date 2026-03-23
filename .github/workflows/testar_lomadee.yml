@@ -7,10 +7,16 @@ jobs:
   testar:
     runs-on: ubuntu-latest
     steps:
-      - name: Testar ofertas Lomadee
+      - name: Testar dominios Lomadee
+        continue-on-error: true
         run: |
-          echo "=== Testando ofertas ==="
-          curl -s "https://api.lomadee.com/v3/mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_/offer/_search?sourceId=2324685&size=3"
-          echo ""
-          echo "=== Testando cupons ==="
-          curl -s "https://api.lomadee.com/v3/mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_/coupon/_search?sourceId=2324685&size=3"
+          echo "=== DNS lookup ==="
+          nslookup api.lomadee.com || echo "DNS falhou"
+
+          echo "=== api.lomadee.com ==="
+          curl -s --max-time 10 "https://api.lomadee.com/v3/mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_/offer/_search?sourceId=2324685&size=1" || echo "FALHOU"
+
+          echo "=== sandbox.lomadee.com ==="
+          curl -s --max-time 10 "https://sandbox.lomadee.com/v3/mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_/offer/_search?sourceId=2324685&size=1" || echo "FALHOU"
+
+          echo "=== Fim dos testes ==="
