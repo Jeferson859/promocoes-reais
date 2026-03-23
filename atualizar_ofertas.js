@@ -2,14 +2,12 @@ const fs = require('fs');
 const https = require('https');
 const { execSync } = require('child_process');
 
-// Categorias para rotacionar a cada hora
-const CATEGORIAS = [
-    'MLB1055',  // Celulares
-    'MLB1648',  // Computadores
-    'MLB1000',  // Eletrônicos
-    'MLB1144',  // TVs
-    'MLB1246',  // Áudio
-];
+const LOMADEE_SOURCE  = '2324685';
+const LOMADEE_TOKEN   = 'mMxCxyI6u2AKiIDY9v27zMUiUKBfQvm_';
+const MELI_APP_ID     = '7346131242004348';
+const MELI_ID         = 'daje8667974';
+
+const CATEGORIAS_ML = ['MLB1055','MLB1648','MLB1000','MLB1144','MLB1246'];
 
 function baixarImagem(url, destino) {
     return new Promise((resolve, reject) => {
@@ -24,82 +22,129 @@ function baixarImagem(url, destino) {
     });
 }
 
-async function renovarToken() {
+async function renovarTokenML() {
     const res = await fetch('https://api.mercadolibre.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `grant_type=refresh_token&client_id=${process.env.MELI_CLIENT_ID}&client_secret=${process.env.MELI_CLIENT_SECRET}&refresh_token=${process.env.ML_REFRESH}`
     });
     const data = await res.json();
-    if (!data.access_token) throw new Error('Token falhou: ' + JSON.stringify(data));
-    console.log('✅ Token renovado!');
+    if (!data.access_token) throw new Error('Token ML falhou: ' + JSON.stringify(data));
+    console.log('✅ Token ML renovado!');
     return data.access_token;
 }
 
-async function buscarProduto(mlToken) {
+// Busca cupons do Lomadee para uma loja
+async function buscarCupomLomadee(nomeLoja) {
+    try {
+        const url = `https://api.lomadee.com/v3/${LOMADEE_TOKEN}/coupon/_search?sourceId=${LOMADEE_SOURCE}&size=5`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+
+        if (!data.coupons || data.coupons.length === 0) return null;
+
+        // Tenta achar cupom da loja do produto
+        const cupom = data.coupons.find(c =>
+            nomeLoja && c.store?.name?.toLowerCase().includes(nomeLoja.toLowerCase())
+        ) || data.coupons[0]; // fallback: primeiro cupom disponível
+
+        return cupom ? {
+            codigo: cupom.code,
+            descricao: cupom.description,
+            loja: cupom.store?.name,
+            validade: cupom.vigency
+        } : null;
+    } catch (e) {
+        console.log('⚠️ Lomadee erro: ' + e.message);
+        return null;
+    }
+}
+
+// Busca oferta do Lomadee diretamente
+async function buscarOfertaLomadee() {
+    try {
+        console.log('🔍 Buscando oferta no Lomadee...');
+        const url = `https://api.lomadee.com/v3/${LOMADEE_TOKEN}/offer/_search?sourceId=${LOMADEE_SOURCE}&size=5`;
+        const res = await fetch(url);
+        console.log(`📡 Lomadee offers status: ${res.status}`);
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        if (!data.offers || data.offers.length === 0) return null;
+
+        // Pega oferta com maior desconto
+        const oferta = data.offers.reduce((m, a) => {
+            const dA = a.discount || 0;
+            const dM = m.discount || 0;
+            return dA > dM ? a : m;
+        });
+
+        console.log(`✅ Lomadee oferta: ${oferta.name}`);
+        return {
+            titulo: oferta.name,
+            preco: oferta.price,
+            precoOriginal: oferta.priceFrom || null,
+            link: oferta.link,
+            thumbnail: oferta.thumbnail,
+            loja: oferta.store?.name || 'Loja parceira',
+            desconto: oferta.discount || null,
+            fonte: 'lomadee'
+        };
+    } catch (e) {
+        console.log('⚠️ Lomadee oferta erro: ' + e.message);
+        return null;
+    }
+}
+
+async function buscarOfertaML(mlToken) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
-    const meliId = 'daje8667974';
-    const appId  = '7346131242004348';
-
-    // Rotaciona categoria pela hora atual
     const hora = new Date().getHours();
-    const categoria = CATEGORIAS[hora % CATEGORIAS.length];
-    console.log(`📂 Categoria: ${categoria} (hora ${hora})`);
+    const minutos = new Date().getMinutes();
+    const categoria = CATEGORIAS_ML[hora % CATEGORIAS_ML.length];
 
-    // 1. Pega highlights da categoria
+    console.log(`📂 ML Categoria: ${categoria}`);
     const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${categoria}`, { headers });
     const hlData = await resHL.json();
     const catalogIds = hlData.content.map(c => c.id);
-    console.log(`📦 ${catalogIds.length} catálogos encontrados`);
 
-    // Seleciona um catálogo diferente baseado nos minutos (muda a cada execução)
-    const minutos = new Date().getMinutes();
     const idx = minutos % catalogIds.length;
     const catId = catalogIds[idx];
-    console.log(`🎯 Catálogo selecionado: ${catId} (índice ${idx})`);
+    console.log(`🎯 Catálogo: ${catId}`);
 
-    // 2. Busca dados do produto no catálogo
     const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
-    console.log(`📡 Product status: ${resProd.status}`);
-    if (!resProd.ok) throw new Error(`Product ${catId} falhou: ${resProd.status}`);
+    if (!resProd.ok) throw new Error(`Product ${catId} falhou`);
     const prod = await resProd.json();
 
-    // 3. Busca itens à venda desse catálogo
     const resItems = await fetch(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
-    console.log(`📡 Items status: ${resItems.status}`);
-
-    let permalink = `https://www.mercadolivre.com.br/p/${catId}?matt_tool=${appId}&utm_campaign=${meliId}`;
-    let preco = null;
-    let precoOriginal = null;
+    let preco = null, precoOriginal = null;
+    let permalink = `https://www.mercadolivre.com.br/p/${catId}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
 
     if (resItems.ok) {
         const itemsData = await resItems.json();
-        if (itemsData.results && itemsData.results.length > 0) {
+        if (itemsData.results?.length > 0) {
             const item = itemsData.results[0];
             preco = item.price;
             precoOriginal = item.original_price;
-            // ✅ Link correto com afiliado
-            if (item.permalink) {
-                permalink = `${item.permalink}?matt_tool=${appId}&utm_campaign=${meliId}`;
-            }
+            if (item.permalink) permalink = `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
         }
     }
 
-    // Fallback de preço via buy_box_winner
-    if (!preco && prod.buy_box_winner) {
-        preco = prod.buy_box_winner.price;
-    }
-
-    if (!preco) throw new Error('Preço não encontrado para ' + catId);
+    if (!preco && prod.buy_box_winner) preco = prod.buy_box_winner.price;
+    if (!preco) throw new Error('Preço não encontrado');
 
     const imgUrl = (prod.pictures?.[0]?.url || '').replace('-O.jpg', '-J.jpg').replace('-I.jpg', '-J.jpg');
+    const desconto = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
 
     return {
-        title: prod.name,
-        price: preco,
-        original_price: precoOriginal,
+        titulo: prod.name,
+        preco,
+        precoOriginal,
+        link: permalink,
         thumbnail: imgUrl,
-        permalink: permalink
+        loja: 'Mercado Livre',
+        desconto,
+        fonte: 'mercadolivre'
     };
 }
 
@@ -113,32 +158,55 @@ async function iniciar() {
     }
 
     try {
-        const mlToken = await renovarToken();
-        const p = await buscarProduto(mlToken);
+        // Alterna entre Lomadee e Mercado Livre a cada execução
+        const minutos = new Date().getMinutes();
+        let oferta = null;
 
-        const titulo        = p.title;
-        const preco         = p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        const precoOriginal = p.original_price
-            ? p.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+        if (minutos % 2 === 0) {
+            // Tenta Lomadee primeiro nos minutos pares
+            oferta = await buscarOfertaLomadee();
+        }
+
+        if (!oferta) {
+            // Fallback ou minutos ímpares: usa Mercado Livre
+            const mlToken = await renovarTokenML();
+            oferta = await buscarOfertaML(mlToken);
+        }
+
+        // Busca cupom do Lomadee para a loja do produto
+        const cupom = await buscarCupomLomadee(oferta.loja);
+        if (cupom) {
+            console.log(`🎟️ Cupom encontrado: ${cupom.codigo}`);
+        }
+
+        const precoFmt = oferta.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const precoOrigFmt = oferta.precoOriginal
+            ? oferta.precoOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
             : null;
-        const desconto = p.original_price
-            ? Math.round(((p.original_price - p.price) / p.original_price) * 100)
-            : null;
 
-        console.log(`✅ Produto: ${titulo} — R$ ${preco}`);
-        console.log(`🔗 Link: ${p.permalink}`);
+        console.log(`✅ ${oferta.titulo} — R$ ${precoFmt}`);
 
-        await baixarImagem(p.thumbnail, 'foto.jpg');
+        await baixarImagem(oferta.thumbnail, 'foto.jpg');
         console.log('📸 Imagem baixada!');
 
-        let msg = `🔥 <b>OFERTA DO DIA!</b>\n\n<b>${titulo}</b>\n\n`;
-        if (precoOriginal && desconto > 0) {
-            msg += `<s>R$ ${precoOriginal}</s>\n`;
-            msg += `💰 <b>R$ ${preco}</b> (${desconto}% OFF)\n\n`;
+        // Monta mensagem
+        let msg = `🔥 <b>OFERTA DO DIA!</b>\n\n`;
+        msg += `<b>${oferta.titulo}</b>\n\n`;
+
+        if (precoOrigFmt && oferta.desconto > 0) {
+            msg += `<s>R$ ${precoOrigFmt}</s>\n`;
+            msg += `💰 <b>R$ ${precoFmt}</b> (${oferta.desconto}% OFF)\n\n`;
         } else {
-            msg += `💰 <b>R$ ${preco}</b>\n\n`;
+            msg += `💰 <b>R$ ${precoFmt}</b>\n\n`;
         }
-        msg += `🛒 <a href="${p.permalink}">Compre aqui</a>`;
+
+        msg += `🛒 <a href="${oferta.link}">Compre aqui</a>`;
+
+        // Adiciona cupom no final se existir
+        if (cupom) {
+            msg += `\n\n🎟️ <b>CUPOM:</b> <code>${cupom.codigo}</code>`;
+            if (cupom.descricao) msg += `\n📌 ${cupom.descricao}`;
+        }
 
         fs.writeFileSync('msg.txt', msg);
 
