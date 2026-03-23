@@ -6,55 +6,66 @@ const LOMADEE_SOURCE = '2324685';
 const MELI_APP_ID    = '7346131242004348';
 const MELI_ID        = 'daje8667974';
 
-// Cada entrada tem loja + produto fixo — sempre combinam!
+// ✅ Apenas lojas que funcionam de forma independente
+// Submarino, Shoptime e Americanas foram removidas — redirecionam entre si
 const OFERTAS = [
-    { loja: 'Magazine Luiza', emoji: '🛍️', produto: 'iphone 15',
+    { loja: 'Magazine Luiza', emoji: '🛍️',
+      produto: 'iphone 15',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null }, // usa API
-
-    { loja: 'Americanas',     emoji: '🔴', produto: 'samsung galaxy s24',
-      link: (q) => `https://www.americanas.com.br/busca/${enc(q)}?chave=afl_${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
 
-    { loja: 'Kabum',          emoji: '💻', produto: 'notebook gamer',
+    { loja: 'Kabum',          emoji: '💻',
+      produto: 'notebook gamer',
       link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
 
-    { loja: 'Submarino',      emoji: '🚢', produto: 'tv 4k 55',
-      link: (q) => `https://www.submarino.com.br/busca/${enc(q)}?chave=afl_${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
-
-    { loja: 'Shoptime',       emoji: '🛒', produto: 'airfryer philips',
-      link: (q) => `https://www.shoptime.com.br/busca/${enc(q)}?chave=afl_${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
-
-    { loja: 'Magazine Luiza', emoji: '🛍️', produto: 'smartwatch',
+    { loja: 'Magazine Luiza', emoji: '🛍️',
+      produto: 'samsung galaxy s24',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
 
-    { loja: 'Americanas',     emoji: '🔴', produto: 'headphone bluetooth',
-      link: (q) => `https://www.americanas.com.br/busca/${enc(q)}?chave=afl_${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
-
-    { loja: 'Kabum',          emoji: '💻', produto: 'monitor gamer',
+    { loja: 'Kabum',          emoji: '💻',
+      produto: 'monitor gamer',
       link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
 
-    { loja: 'Magazine Luiza', emoji: '🛍️', produto: 'geladeira frost free',
+    { loja: 'Magazine Luiza', emoji: '🛍️',
+      produto: 'tv 4k 55',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
 
-    { loja: 'Submarino',      emoji: '🚢', produto: 'kindle',
-      link: (q) => `https://www.submarino.com.br/busca/${enc(q)}?chave=afl_${LOMADEE_SOURCE}` },
+    { loja: 'Kabum',          emoji: '💻',
+      produto: 'headphone bluetooth',
+      link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
+
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
+
+    { loja: 'Magazine Luiza', emoji: '🛍️',
+      produto: 'geladeira frost free',
+      link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
+
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
+
+    { loja: 'Kabum',          emoji: '💻',
+      produto: 'placa de video',
+      link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
+
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
+
+    { loja: 'Magazine Luiza', emoji: '🛍️',
+      produto: 'airfryer philips',
+      link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
+
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
+
+    { loja: 'Kabum',          emoji: '💻',
+      produto: 'ssd nvme',
+      link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: null, link: null },
 ];
@@ -94,7 +105,7 @@ async function buscarOfertaML(mlToken) {
     const minutos = new Date().getUTCMinutes();
     const cat     = CATEGORIAS_ML[hora % CATEGORIAS_ML.length];
 
-    const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    const resHL  = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
     const hlData = await resHL.json();
     const ids    = hlData.content.map(c => c.id);
     const catId  = ids[minutos % ids.length];
@@ -120,26 +131,24 @@ async function buscarOfertaML(mlToken) {
     if (!preco && prod.buy_box_winner) preco = prod.buy_box_winner.price;
     if (!preco) throw new Error('Preço não encontrado');
 
-    const img = (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
+    const img     = (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
     const desconto = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
 
     return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
 }
 
 async function buscarImagemML(mlToken) {
-    try {
-        const headers = { 'Authorization': `Bearer ${mlToken}` };
-        const hora = new Date().getUTCHours();
-        const cat  = CATEGORIAS_ML[hora % CATEGORIAS_ML.length];
-        const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
-        const hlData = await resHL.json();
-        const catId = hlData.content[0]?.id;
-        const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
-        const prod = await resProd.json();
-        return (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
-    } catch(e) {
-        throw new Error('Imagem não encontrada: ' + e.message);
-    }
+    const headers = { 'Authorization': `Bearer ${mlToken}` };
+    const hora  = new Date().getUTCHours();
+    const cat   = CATEGORIAS_ML[hora % CATEGORIAS_ML.length];
+    const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    const hlData = await resHL.json();
+    const catId  = hlData.content[0]?.id;
+    const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
+    const prod    = await resProd.json();
+    const img = (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
+    if (!img) throw new Error('Imagem não encontrada');
+    return img;
 }
 
 async function iniciar() {
@@ -152,7 +161,6 @@ async function iniciar() {
     }
 
     try {
-        // Índice baseado no número de execuções de 30 min desde epoch
         const idx    = Math.floor(Date.now() / (30 * 60 * 1000)) % OFERTAS.length;
         const oferta = OFERTAS[idx];
 
@@ -163,10 +171,8 @@ async function iniciar() {
         let resultado;
 
         if (oferta.loja === 'Mercado Livre') {
-            // Busca produto e preço real via API
             resultado = await buscarOfertaML(mlToken);
         } else {
-            // Loja Lomadee — monta deep link com produto fixo da entrada
             const link      = oferta.link(oferta.produto);
             const thumbnail = await buscarImagemML(mlToken);
             resultado = {
@@ -184,7 +190,6 @@ async function iniciar() {
         await baixarImagem(resultado.thumbnail, 'foto.jpg');
         console.log('📸 Imagem baixada!');
 
-        // Monta mensagem
         let msg = `${oferta.emoji} <b>${oferta.loja.toUpperCase()}</b>\n`;
         msg += `━━━━━━━━━━━━━━━\n`;
         msg += `🔥 <b>OFERTA DO DIA!</b>\n\n`;
