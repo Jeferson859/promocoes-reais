@@ -37,8 +37,12 @@ const OFERTAS = [
       produto: 'kit halteres',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'garrafa térmica academia', link: null }
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null }
 ];
+
+// Categorias focadas em fitness no ML
+// MLB2438 = Suplementos, MLB55255 = Roupas Esportivas, MLB35235 = Musculação, MLB12711 = Esportes Geral, MLB15250 = Tênis Esportivos
+const CATEGORIAS_FITNESS_ML = ['MLB2438', 'MLB55255', 'MLB35235', 'MLB12711', 'MLB15250'];
 
 function enc(q) { return encodeURIComponent(q); }
 
@@ -69,42 +73,60 @@ async function renovarTokenML() {
 
 async function buscarOfertaML(mlToken, produto) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
-    const query = produto || 'suplementos fitness';
+    const hora    = new Date().getUTCHours();
     const minutos = new Date().getUTCMinutes();
+    const cat     = CATEGORIAS_FITNESS_ML[hora % CATEGORIAS_FITNESS_ML.length];
 
-    // Faz a busca do produto
-    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${enc(query)}&limit=15`);
-    if (!res.ok) {
-        const erroTxt = await res.text();
-        throw new Error(`Falha ao buscar no ML (${res.status}): ${erroTxt}`);
+    // Volta a usar a API de Highlights que é permitida para bots e não dá 403
+    const resHL  = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    if (!resHL.ok) throw new Error(`Falha ao buscar highlights (${resHL.status})`);
+    
+    const hlData = await resHL.json();
+    const ids    = hlData.content.map(c => c.id);
+    const catId  = ids[minutos % ids.length];
+
+    const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
+    if (!resProd.ok) throw new Error(`Product ${catId} falhou`);
+    const prod = await resProd.json();
+
+    const resItems = await fetch(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
+    let preco = null, precoOriginal = null;
+    let permalink = `https://www.mercadolivre.com.br/p/${catId}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+
+    if (resItems.ok) {
+        const d = await resItems.json();
+        if (d.results?.length > 0) {
+            const item = d.results[0];
+            preco = item.price;
+            precoOriginal = item.original_price;
+            if (item.permalink) permalink = `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        }
     }
-    
-    const data = await res.json();
-    if (!data.results || data.results.length === 0) throw new Error('Nenhum produto encontrado');
 
-    // Escolhe um produto do topo (rotativo por minuto) para ter variedade
-    const item = data.results[minutos % Math.min(10, data.results.length)];
+    if (!preco && prod.buy_box_winner) preco = prod.buy_box_winner.price;
+    if (!preco) throw new Error('Preço não encontrado');
 
-    const preco = item.price;
-    const precoOriginal = item.original_price;
-    const permalink = item.permalink ? `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}` : '';
-    
-    // Pega a imagem de melhor qualidade se possível
-    const img = (item.thumbnail || '').replace('-I.jpg','-J.jpg').replace('-O.jpg','-J.jpg');
+    const img = (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
     const desconto = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
 
-    return { titulo: item.title, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+    return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
 }
 
 async function buscarImagemML(mlToken, produto) {
-    const query = produto || 'oferta';
+    const headers = { 'Authorization': `Bearer ${mlToken}` };
+    const hora  = new Date().getUTCHours();
+    const cat   = CATEGORIAS_FITNESS_ML[hora % CATEGORIAS_FITNESS_ML.length];
     
-    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${enc(query)}&limit=1`);
-    const data = await res.json();
+    const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    const hlData = await resHL.json();
+    const catId  = hlData.content[0]?.id;
     
-    if (!data.results || data.results.length === 0) throw new Error('Imagem não encontrada');
+    const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
+    const prod    = await resProd.json();
+    const img = (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
+    if (!img) throw new Error('Imagem não encontrada');
     
-    return data.results[0].thumbnail.replace('-I.jpg','-J.jpg').replace('-O.jpg','-J.jpg');
+    return img;
 }
 
 async function iniciar() {
