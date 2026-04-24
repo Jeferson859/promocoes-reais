@@ -11,30 +11,35 @@ const MELI_ID        = 'daje8667974';
 const OFERTAS = [
     { loja: 'Magazine Luiza', emoji: '🛍️',
       produto: 'whey protein',
+      imagem_fixa: 'https://a-static.mlcdn.com.br/800x560/whey-protein-100-puro-sabor-chocolate-900g-integralmedica/suplementosbaratos/372/295c52c2122b5125dd280a56f21c258f.jpg',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'creatina', link: null },
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Kabum',          emoji: '💻',
       produto: 'smartwatch fitness',
+      imagem_fixa: 'https://images.kabum.com.br/produtos/fotos/384725/smartwatch-samsung-galaxy-watch5-pro-bt-45mm-tela-sapphire-amoled-1-36-bluetooth-preto-sm-r920nzkazto_1660139194_gg.jpg',
       link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'roupa fitness feminina', link: null },
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Magazine Luiza', emoji: '🛍️',
       produto: 'tênis de corrida',
+      imagem_fixa: 'https://a-static.mlcdn.com.br/800x560/tenis-esportivo-corrida-academia-original-macio-e-confortavel/allfeet/010marinho-43/4523bb8c7b8dfa5ed56d817b1bf762dd.jpeg',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'pré treino', link: null },
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Kabum',          emoji: '💻',
       produto: 'balança bioimpedância',
+      imagem_fixa: 'https://images.kabum.com.br/produtos/fotos/471015/balanca-de-bioimpedancia-digital-com-bluetooth-e-app-preta_1688647565_gg.jpg',
       link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'suplemento hipercalórico', link: null },
+    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Magazine Luiza', emoji: '🛍️',
       produto: 'kit halteres',
+      imagem_fixa: 'https://a-static.mlcdn.com.br/800x560/kit-2-halteres-de-1kg-fita-de-suspensao-trilha-esporte/magazineluiza/225330800/d7e178ff06c59a35e40638ff408cdd6a.jpg',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null }
@@ -77,11 +82,21 @@ async function buscarOfertaML(mlToken, produto) {
     const minutos = new Date().getUTCMinutes();
     const cat     = CATEGORIAS_FITNESS_ML[hora % CATEGORIAS_FITNESS_ML.length];
 
-    // Volta a usar a API de Highlights que é permitida para bots e não dá 403
-    const resHL  = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    // Volta a usar a API de Highlights que é permitida para bots
+    let resHL  = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    
+    // Se a subcategoria não tem destaques (ex: MLB2438 dá 404), usamos a categoria PAI (Esportes e Fitness)
+    if (!resHL.ok) {
+        resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/MLB12711`, { headers });
+    }
+    
     if (!resHL.ok) throw new Error(`Falha ao buscar highlights (${resHL.status})`);
     
     const hlData = await resHL.json();
+    if (!hlData.content || hlData.content.length === 0) {
+        throw new Error('Nenhum item encontrado no highlights da categoria');
+    }
+    
     const ids    = hlData.content.map(c => c.id);
     const catId  = ids[minutos % ids.length];
 
@@ -112,23 +127,6 @@ async function buscarOfertaML(mlToken, produto) {
     return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
 }
 
-async function buscarImagemML(mlToken, produto) {
-    const headers = { 'Authorization': `Bearer ${mlToken}` };
-    const hora  = new Date().getUTCHours();
-    const cat   = CATEGORIAS_FITNESS_ML[hora % CATEGORIAS_FITNESS_ML.length];
-    
-    const resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
-    const hlData = await resHL.json();
-    const catId  = hlData.content[0]?.id;
-    
-    const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
-    const prod    = await resProd.json();
-    const img = (prod.pictures?.[0]?.url || '').replace('-O.jpg','-J.jpg').replace('-I.jpg','-J.jpg');
-    if (!img) throw new Error('Imagem não encontrada');
-    
-    return img;
-}
-
 async function iniciar() {
     const token  = process.env.TELEGRAM_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -152,7 +150,8 @@ async function iniciar() {
             resultado = await buscarOfertaML(mlToken, oferta.produto);
         } else {
             const link      = oferta.link(oferta.produto);
-            const thumbnail = await buscarImagemML(mlToken, oferta.produto);
+            const thumbnail = oferta.imagem_fixa; // Usamos a imagem direta do produto
+            
             resultado = {
                 titulo: oferta.produto.toUpperCase(),
                 preco: null,
