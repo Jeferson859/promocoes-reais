@@ -11,35 +11,35 @@ const MELI_ID        = 'daje8667974';
 const OFERTAS = [
     { loja: 'Magazine Luiza', emoji: '🛍️',
       produto: 'whey protein',
-      imagem_fixa: 'https://a-static.mlcdn.com.br/800x560/whey-protein-100-puro-sabor-chocolate-900g-integralmedica/suplementosbaratos/372/295c52c2122b5125dd280a56f21c258f.jpg',
+      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_830691-MLB71014167385_082023-V.jpg',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Kabum',          emoji: '💻',
       produto: 'smartwatch fitness',
-      imagem_fixa: 'https://images.kabum.com.br/produtos/fotos/384725/smartwatch-samsung-galaxy-watch5-pro-bt-45mm-tela-sapphire-amoled-1-36-bluetooth-preto-sm-r920nzkazto_1660139194_gg.jpg',
+      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_727409-MLU70425785084_072023-V.jpg',
       link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Magazine Luiza', emoji: '🛍️',
       produto: 'tênis de corrida',
-      imagem_fixa: 'https://a-static.mlcdn.com.br/800x560/tenis-esportivo-corrida-academia-original-macio-e-confortavel/allfeet/010marinho-43/4523bb8c7b8dfa5ed56d817b1bf762dd.jpeg',
+      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_767351-MLU72688005391_112023-V.jpg',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Kabum',          emoji: '💻',
       produto: 'balança bioimpedância',
-      imagem_fixa: 'https://images.kabum.com.br/produtos/fotos/471015/balanca-de-bioimpedancia-digital-com-bluetooth-e-app-preta_1688647565_gg.jpg',
+      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_900350-MLU72709605553_112023-V.jpg',
       link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
 
     { loja: 'Magazine Luiza', emoji: '🛍️',
       produto: 'kit halteres',
-      imagem_fixa: 'https://a-static.mlcdn.com.br/800x560/kit-2-halteres-de-1kg-fita-de-suspensao-trilha-esporte/magazineluiza/225330800/d7e178ff06c59a35e40638ff408cdd6a.jpg',
+      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_608119-MLB51430932594_092022-V.jpg',
       link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
 
     { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null }
@@ -51,17 +51,17 @@ const CATEGORIAS_FITNESS_ML = ['MLB2438', 'MLB55255', 'MLB35235', 'MLB12711', 'M
 
 function enc(q) { return encodeURIComponent(q); }
 
-function baixarImagem(url, destino) {
-    return new Promise((resolve, reject) => {
-        const req = (u) => https.get(u, (res) => {
-            if (res.statusCode === 301 || res.statusCode === 302) return req(res.headers.location);
-            const file = fs.createWriteStream(destino);
-            res.pipe(file);
-            file.on('finish', () => { file.close(); resolve(); });
-            file.on('error', reject);
-        }).on('error', reject);
-        req(url);
-    });
+async function baixarImagem(url, destino) {
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+    if (!res.ok) {
+        throw new Error(`O download da imagem falhou com status ${res.status}`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length === 0) {
+        throw new Error('A imagem baixada está vazia (0 bytes)');
+    }
+    fs.writeFileSync(destino, buffer);
 }
 
 async function renovarTokenML() {
