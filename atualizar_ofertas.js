@@ -73,8 +73,11 @@ async function buscarOfertaML(mlToken, produto) {
     const minutos = new Date().getUTCMinutes();
 
     // Faz a busca do produto
-    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${enc(query)}&limit=15`, { headers });
-    if (!res.ok) throw new Error('Falha ao buscar no ML');
+    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${enc(query)}&limit=15`);
+    if (!res.ok) {
+        const erroTxt = await res.text();
+        throw new Error(`Falha ao buscar no ML (${res.status}): ${erroTxt}`);
+    }
     
     const data = await res.json();
     if (!data.results || data.results.length === 0) throw new Error('Nenhum produto encontrado');
@@ -94,10 +97,9 @@ async function buscarOfertaML(mlToken, produto) {
 }
 
 async function buscarImagemML(mlToken, produto) {
-    const headers = { 'Authorization': `Bearer ${mlToken}` };
     const query = produto || 'oferta';
     
-    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${enc(query)}&limit=1`, { headers });
+    const res = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${enc(query)}&limit=1`);
     const data = await res.json();
     
     if (!data.results || data.results.length === 0) throw new Error('Imagem não encontrada');
