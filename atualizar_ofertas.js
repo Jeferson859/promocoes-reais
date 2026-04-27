@@ -47,13 +47,14 @@ async function buscarOfertaML(mlToken, produto) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
     const hora    = new Date().getUTCHours();
     const minutos = new Date().getUTCMinutes();
-    const cat     = CATEGORIAS_FITNESS_ML[hora % CATEGORIAS_FITNESS_ML.length];
+    const TERMOS_BUSCA = ['whey protein', 'creatina', 'smartwatch fitness', 'tenis corrida', 'halteres', 'colageno'];
+    const termo = TERMOS_BUSCA[minutos % TERMOS_BUSCA.length];
 
-    // Usa a API de Busca padrão (que nunca dá 404) em vez da de highlights
-    const resBusca  = await fetch(`https://api.mercadolibre.com/sites/MLB/search?category=${cat}&limit=50`, { headers });
+    // Usa a API de Produtos do Catálogo, que permite acesso e retorna itens premium!
+    const resBusca  = await fetch(`https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}`, { headers });
     
     if (!resBusca.ok) {
-        throw new Error(`Falha ao buscar produtos na categoria (${resBusca.status})`);
+        throw new Error(`Falha ao buscar produtos da busca (${resBusca.status})`);
     }
     
     const buscaData = await resBusca.json();
