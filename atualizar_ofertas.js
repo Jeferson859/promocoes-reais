@@ -6,43 +6,10 @@ const LOMADEE_SOURCE = '2324685';
 const MELI_APP_ID    = '7346131242004348';
 const MELI_ID        = 'daje8667974';
 
-// ✅ Apenas lojas que funcionam de forma independente
-// Submarino, Shoptime e Americanas foram removidas — redirecionam entre si
+// ✅ Focando 100% no Mercado Livre, pois é a única loja com API oficial
+// que nos fornece o preço real, os descontos e a imagem verdadeira do produto em tempo real.
 const OFERTAS = [
-    { loja: 'Magazine Luiza', emoji: '🛍️',
-      produto: 'whey protein',
-      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_830691-MLB71014167385_082023-V.jpg',
-      link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
-
-    { loja: 'Kabum',          emoji: '💻',
-      produto: 'smartwatch fitness',
-      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_727409-MLU70425785084_072023-V.jpg',
-      link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
-
-    { loja: 'Magazine Luiza', emoji: '🛍️',
-      produto: 'tênis de corrida',
-      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_767351-MLU72688005391_112023-V.jpg',
-      link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
-
-    { loja: 'Kabum',          emoji: '💻',
-      produto: 'balança bioimpedância',
-      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_900350-MLU72709605553_112023-V.jpg',
-      link: (q) => `https://www.kabum.com.br/busca/${enc(q)}?utm_source=lomadee&utm_medium=afiliados&sourceId=${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null },
-
-    { loja: 'Magazine Luiza', emoji: '🛍️',
-      produto: 'kit halteres',
-      imagem_fixa: 'https://http2.mlstatic.com/D_NQ_NP_608119-MLB51430932594_092022-V.jpg',
-      link: (q) => `https://www.magazineluiza.com.br/busca/${enc(q)}/?partner_id=${LOMADEE_SOURCE}&source_id=${LOMADEE_SOURCE}` },
-
-    { loja: 'Mercado Livre',  emoji: '🟡', produto: 'fitness', link: null }
+    { loja: 'Mercado Livre', emoji: '🟡', produto: 'fitness', link: null }
 ];
 
 // Categorias focadas em fitness no ML
@@ -143,10 +110,10 @@ async function iniciar() {
         console.log(`🏪 Loja: ${oferta.loja} (índice ${idx})`);
         console.log(`📦 Produto: ${oferta.produto || 'via API ML'}`);
 
-        const mlToken = await renovarTokenML();
         let resultado;
 
         if (oferta.loja === 'Mercado Livre') {
+            const mlToken = await renovarTokenML();
             resultado = await buscarOfertaML(mlToken, oferta.produto);
         } else {
             const link      = oferta.link(oferta.produto);
@@ -192,7 +159,7 @@ async function iniciar() {
         const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" \
             -F chat_id="${chatId}" \
             -F photo="@foto.jpg" \
-            -F caption="$(cat msg.txt)" \
+            -F caption="<msg.txt" \
             -F parse_mode="HTML"`;
 
         const res  = execSync(cmd).toString();
@@ -206,6 +173,17 @@ async function iniciar() {
 
     } catch (e) {
         console.error('❌ Erro: ' + e.message);
+        
+        // Tenta enviar o erro para o Telegram para facilitar o diagnóstico
+        try {
+            const t = process.env.TELEGRAM_TOKEN;
+            const c = process.env.TELEGRAM_CHAT_ID;
+            if (t && c) {
+                const msgErro = `⚠️ <b>O Bot encontrou um erro:</b>\n\n${e.message}\n\n<i>Se o erro for sobre o Token do ML, será necessário gerar um novo refresh_token.</i>`;
+                execSync(`curl -s -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${c}" -F text="${msgErro}" -F parse_mode="HTML"`);
+            }
+        } catch(err2) {}
+
         process.exit(1);
     }
 }
