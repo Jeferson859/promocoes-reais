@@ -49,22 +49,19 @@ async function buscarOfertaML(mlToken, produto) {
     const minutos = new Date().getUTCMinutes();
     const cat     = CATEGORIAS_FITNESS_ML[hora % CATEGORIAS_FITNESS_ML.length];
 
-    // Volta a usar a API de Highlights que é permitida para bots
-    let resHL  = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/${cat}`, { headers });
+    // Usa a API de Busca padrão (que nunca dá 404) em vez da de highlights
+    const resBusca  = await fetch(`https://api.mercadolibre.com/sites/MLB/search?category=${cat}&limit=50`, { headers });
     
-    // Se a subcategoria não tem destaques (ex: MLB2438 dá 404), usamos a categoria PAI (Esportes e Fitness)
-    if (!resHL.ok) {
-        resHL = await fetch(`https://api.mercadolibre.com/highlights/MLB/category/MLB12711`, { headers });
+    if (!resBusca.ok) {
+        throw new Error(`Falha ao buscar produtos na categoria (${resBusca.status})`);
     }
     
-    if (!resHL.ok) throw new Error(`Falha ao buscar highlights (${resHL.status})`);
-    
-    const hlData = await resHL.json();
-    if (!hlData.content || hlData.content.length === 0) {
-        throw new Error('Nenhum item encontrado no highlights da categoria');
+    const buscaData = await resBusca.json();
+    if (!buscaData.results || buscaData.results.length === 0) {
+        throw new Error('Nenhum item encontrado na busca');
     }
     
-    const ids    = hlData.content.map(c => c.id);
+    const ids    = buscaData.results.map(c => c.id);
     const catId  = ids[minutos % ids.length];
 
     const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
