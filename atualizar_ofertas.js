@@ -39,35 +39,38 @@ async function renovarTokenML() {
 }
 
 async function buscarOfertaML(mlToken) {
+    const headers = { 'Authorization': `Bearer ${mlToken}` };
     const minutos = new Date().getUTCMinutes();
     const termo   = TERMOS_BUSCA[minutos % TERMOS_BUSCA.length];
 
     const resBusca = await fetchComTimeout(
-        `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=20&access_token=${mlToken}`
+        `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}&limit=20`,
+        { headers },
+        30000
     );
     if (!resBusca.ok) {
         const corpo = await resBusca.text();
-        throw new Error(`Falha na busca de itens (${resBusca.status}): ${corpo}`);
+        throw new Error(`Falha na busca (${resBusca.status}): ${corpo}`);
     }
 
     const buscaData = await resBusca.json();
-    if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum item encontrado na busca');
+    if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum produto encontrado na busca');
 
-    // Prioriza itens com desconto; se não tiver, pega qualquer um com preço
-    const comDesconto = buscaData.results.filter(i => i.original_price && i.original_price > i.price && i.thumbnail);
-    const item = comDesconto.length > 0
-        ? comDesconto[minutos % comDesconto.length]
-        : buscaData.results.find(i => i.price && i.thumbnail);
+    // Percorre os resultados até achar um com preço no buy_box_winner
+    const comPreco = buscaData.results.filter(p => p.buy_box_winner?.price);
+    if (comPreco.length === 0) throw new Error('Nenhum produto com preço no buy_box_winner');
 
-    if (!item) throw new Error('Nenhum item com preço encontrado');
+    const prod = comPreco[minutos % comPreco.length];
 
-    const preco         = item.price;
-    const precoOriginal = item.original_price || null;
+    const preco         = prod.buy_box_winner.price;
+    const precoOriginal = prod.buy_box_winner.original_price || null;
     const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
-    const permalink     = `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
-    const img           = item.thumbnail.replace(/\-[A-Z]\.jpg$/, '-J.jpg');
+    const permalink     = `https://www.mercadolivre.com.br/p/${prod.id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+    const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
 
-    return { titulo: item.title, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+    if (!img) throw new Error('Imagem não encontrada para o produto');
+
+    return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
 }
 
 async function iniciar() {
