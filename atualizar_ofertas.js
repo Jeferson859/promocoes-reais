@@ -56,21 +56,29 @@ async function buscarOfertaML(mlToken) {
     const buscaData = await resBusca.json();
     if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum produto encontrado na busca');
 
-    // Percorre os resultados até achar um com preço no buy_box_winner
-    const comPreco = buscaData.results.filter(p => p.buy_box_winner?.price);
-    if (comPreco.length === 0) throw new Error('Nenhum produto com preço no buy_box_winner');
+    console.log(`🔍 ${buscaData.results.length} produtos encontrados. Campos do 1º:`, JSON.stringify(Object.keys(buscaData.results[0])));
+    console.log(`📦 buy_box_winner do 1º:`, JSON.stringify(buscaData.results[0].buy_box_winner));
 
-    const prod = comPreco[minutos % comPreco.length];
+    // Busca produto individual até achar um com buy_box_winner e preço
+    const ids = buscaData.results.map(p => p.id);
+    for (const id of ids.slice(0, 5)) {
+        const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 15000);
+        if (!resProd.ok) continue;
+        const prod = await resProd.json();
+        if (!prod.buy_box_winner?.price) continue;
 
-    const preco         = prod.buy_box_winner.price;
-    const precoOriginal = prod.buy_box_winner.original_price || null;
-    const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
-    const permalink     = `https://www.mercadolivre.com.br/p/${prod.id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
-    const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
+        const preco         = prod.buy_box_winner.price;
+        const precoOriginal = prod.buy_box_winner.original_price || null;
+        const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
+        const permalink     = `https://www.mercadolivre.com.br/p/${prod.id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
+        if (!img) continue;
 
-    if (!img) throw new Error('Imagem não encontrada para o produto');
+        console.log(`✅ Produto com preço encontrado: ${prod.name}`);
+        return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+    }
 
-    return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+    throw new Error('Nenhum dos 5 primeiros produtos tinha preço disponível');
 }
 
 async function iniciar() {
