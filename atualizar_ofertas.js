@@ -94,12 +94,15 @@ async function buscarOfertaML(mlToken, ultimoId) {
         const item = itemsData.results.find(temDesconto10) || itemsData.results.find(i => i.price);
         if (!item) continue;
 
-        // Busca permalink real do item
+        // Busca permalink real via ID do item (campo vem como "id" nos results)
+        const itemId = item.id || (itemsData.results[0] && itemsData.results[0].id);
         let permalink = `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
-        const resDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${item.id}`, { headers }, 15000);
-        if (resDetalhe.ok) {
-            const detalhe = await resDetalhe.json();
-            if (detalhe.permalink) permalink = `${detalhe.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        if (itemId) {
+            const resDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${itemId}`, { headers }, 15000);
+            if (resDetalhe.ok) {
+                const detalhe = await resDetalhe.json();
+                if (detalhe.permalink) permalink = `${detalhe.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+            }
         }
 
         const preco         = item.price;
@@ -109,7 +112,7 @@ async function buscarOfertaML(mlToken, ultimoId) {
         if (!img) continue;
 
         console.log(`✅ Produto: ${prod.name} — R$ ${preco}${desconto ? ` (${desconto}% OFF)` : ''}`);
-        return { id: item.id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+        return { id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
     }
 
     throw new Error(`Nenhum produto disponível com os critérios de busca para "${termo}"`);
