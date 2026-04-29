@@ -55,13 +55,7 @@ async function renovarTokenML() {
     return data.access_token;
 }
 
-async function buscarOfertaML(mlToken, ultimoId) {
-    const headers = { 'Authorization': `Bearer ${mlToken}` };
-    const slot    = Math.floor(Date.now() / (15 * 60 * 1000));
-    const termo   = TERMOS_BUSCA[slot % TERMOS_BUSCA.length];
-
-    console.log(`🔎 Buscando: "${termo}"`);
-
+async function buscarPorTermo(headers, termo, ultimoId) {
     const resBusca = await fetchComTimeout(
         `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}&limit=20`,
         { headers },
@@ -73,12 +67,11 @@ async function buscarOfertaML(mlToken, ultimoId) {
     }
 
     const buscaData = await resBusca.json();
-    if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum produto encontrado');
+    if (!buscaData.results || buscaData.results.length === 0) return null;
 
-    // Remove o último produto postado para evitar repetição
     const ids = buscaData.results.map(p => p.id).filter(id => id !== ultimoId);
 
-    for (const id of ids.slice(0, 6)) {
+    for (const id of ids.slice(0, 8)) {
         const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
         if (!resProd.ok) continue;
         const prod = await resProd.json();
@@ -89,12 +82,9 @@ async function buscarOfertaML(mlToken, ultimoId) {
         if (!itemsData.results?.length) continue;
 
         const temDesconto10 = (i) => i.price && i.original_price && ((i.original_price - i.price) / i.original_price) >= 0.10;
-
-        // Prioriza item com desconto >= 10%; se não tiver, aceita qualquer um com preço
         const item = itemsData.results.find(temDesconto10) || itemsData.results.find(i => i.price);
         if (!item) continue;
 
-        // Busca permalink real via ID do item (campo vem como "id" nos results)
         const itemId = item.id || (itemsData.results[0] && itemsData.results[0].id);
         let permalink = `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
         if (itemId) {
@@ -115,7 +105,27 @@ async function buscarOfertaML(mlToken, ultimoId) {
         return { id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
     }
 
-    throw new Error(`Nenhum produto disponível com os critérios de busca para "${termo}"`);
+    return null;
+}
+
+async function buscarOfertaML(mlToken, ultimoId) {
+    const headers = { 'Authorization': `Bearer ${mlToken}` };
+    const slot    = Math.floor(Date.now() / (15 * 60 * 1000));
+
+    // Tenta até 5 termos diferentes; se um falhar, passa para o próximo
+    for (let i = 0; i < 5; i++) {
+        const termo = TERMOS_BUSCA[(slot + i) % TERMOS_BUSCA.length];
+        console.log(`🔎 Buscando: "${termo}"`);
+        try {
+            const resultado = await buscarPorTermo(headers, termo, ultimoId);
+            if (resultado) return resultado;
+            console.log(`⚠️ Sem produto válido para "${termo}", tentando próximo...`);
+        } catch (e) {
+            console.log(`⚠️ Erro no termo "${termo}": ${e.message}, tentando próximo...`);
+        }
+    }
+
+    throw new Error('Nenhum produto encontrado após 5 tentativas com termos diferentes');
 }
 
 async function iniciar() {
