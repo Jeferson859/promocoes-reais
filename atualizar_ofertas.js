@@ -188,8 +188,8 @@ async function iniciar() {
             const t = process.env.TELEGRAM_TOKEN;
             const c = process.env.TELEGRAM_CHAT_ID;
             if (t && c) {
-                const msgErro = `⚠️ <b>Erro no Bot:</b>\n\n${e.message}`;
-                execSync(`curl -s --max-time 15 -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${c}" -F text="${msgErro}" -F parse_mode="HTML"`, { timeout: 20000 });
+                fs.writeFileSync('erro.txt', `⚠️ <b>Erro no Bot:</b>\n\n${e.message}`);
+                execSync(`curl -s --max-time 15 -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${c}" -F text="<erro.txt" -F parse_mode="HTML"`, { timeout: 20000 });
             }
         } catch (err2) {}
 
