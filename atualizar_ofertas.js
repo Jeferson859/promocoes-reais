@@ -26,12 +26,24 @@ async function baixarImagem(url, destino) {
     fs.writeFileSync(destino, buffer);
 }
 
-async function buscarOfertaML() {
+async function renovarTokenML() {
+    const res = await fetchComTimeout('https://api.mercadolibre.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=refresh_token&client_id=${process.env.MELI_CLIENT_ID}&client_secret=${process.env.MELI_CLIENT_SECRET}&refresh_token=${process.env.ML_REFRESH}`
+    });
+    const data = await res.json();
+    if (!data.access_token) throw new Error('Token ML falhou: ' + JSON.stringify(data));
+    console.log('✅ Token ML renovado!');
+    return data.access_token;
+}
+
+async function buscarOfertaML(mlToken) {
     const minutos = new Date().getUTCMinutes();
     const termo   = TERMOS_BUSCA[minutos % TERMOS_BUSCA.length];
 
     const resBusca = await fetchComTimeout(
-        `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=20`
+        `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=20&access_token=${mlToken}`
     );
     if (!resBusca.ok) throw new Error(`Falha na busca de itens (${resBusca.status})`);
 
@@ -68,7 +80,8 @@ async function iniciar() {
         const oferta = OFERTAS[0];
         console.log(`🏪 Loja: ${oferta.loja}`);
 
-        const resultado = await buscarOfertaML();
+        const mlToken   = await renovarTokenML();
+        const resultado = await buscarOfertaML(mlToken);
 
         console.log(`🔗 Link: ${resultado.link}`);
 
