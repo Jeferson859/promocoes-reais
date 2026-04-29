@@ -8,7 +8,18 @@ const OFERTAS = [
     { loja: 'Mercado Livre', emoji: '🟡', produto: 'fitness', link: null }
 ];
 
-const TERMOS_BUSCA = ['whey protein', 'creatina', 'smartwatch fitness', 'tenis corrida', 'halteres', 'colageno'];
+const TERMOS_BUSCA = [
+    // Suplementos
+    'whey protein', 'creatina', 'colageno hidrolisado', 'vitamina c', 'omega 3', 'pre treino',
+    'bcaa', 'glutamina', 'proteina vegana', 'albumina',
+    // Roupas e acessórios
+    'tenis corrida', 'legging fitness', 'bermuda academia', 'camiseta dry fit', 'top fitness',
+    // Equipamentos
+    'halteres', 'kettlebell', 'corda pular', 'colchonete yoga', 'faixa elastica resistencia',
+    'barra musculacao', 'anilha academia', 'step aerobico',
+    // Tecnologia fitness
+    'smartwatch fitness', 'monitor frequencia cardiaca', 'bike ergometrica',
+];
 
 function fetchComTimeout(url, opcoes = {}, ms = 15000) {
     const controller = new AbortController();
@@ -33,15 +44,23 @@ async function renovarTokenML() {
         body: `grant_type=refresh_token&client_id=${process.env.MELI_CLIENT_ID}&client_secret=${process.env.MELI_CLIENT_SECRET}&refresh_token=${process.env.ML_REFRESH}`
     });
     const data = await res.json();
-    if (!data.access_token) throw new Error('Token ML falhou: ' + JSON.stringify(data));
+    if (!data.access_token) {
+        const expirado = data.error === 'invalid_grant' || (data.message || '').toLowerCase().includes('expired');
+        const msg = expirado
+            ? '🔑 Refresh token expirado! Acesse o ML Developer Portal e gere um novo refresh_token.'
+            : 'Falha ao renovar token ML: ' + JSON.stringify(data);
+        throw new Error(msg);
+    }
     console.log('✅ Token ML renovado!');
     return data.access_token;
 }
 
-async function buscarOfertaML(mlToken) {
+async function buscarOfertaML(mlToken, ultimoId) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
-    const minutos = new Date().getUTCMinutes();
-    const termo   = TERMOS_BUSCA[minutos % TERMOS_BUSCA.length];
+    const slot    = Math.floor(Date.now() / (15 * 60 * 1000));
+    const termo   = TERMOS_BUSCA[slot % TERMOS_BUSCA.length];
+
+    console.log(`🔎 Buscando: "${termo}"`);
 
     const resBusca = await fetchComTimeout(
         `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}&limit=20`,
@@ -54,28 +73,32 @@ async function buscarOfertaML(mlToken) {
     }
 
     const buscaData = await resBusca.json();
-    if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum produto encontrado na busca');
+    if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum produto encontrado');
 
-    const ids = buscaData.results.map(p => p.id);
+    // Remove o último produto postado para evitar repetição
+    const ids = buscaData.results.map(p => p.id).filter(id => id !== ultimoId);
 
-    // Para cada produto, busca os itens reais que têm preço
-    for (const id of ids.slice(0, 5)) {
-        const resProd  = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
-        if (!resProd.ok) { console.log(`⚠️ Produto ${id} retornou ${resProd.status}`); continue; }
+    for (const id of ids.slice(0, 6)) {
+        const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
+        if (!resProd.ok) continue;
         const prod = await resProd.json();
 
         const resItems = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}/items`, { headers }, 20000);
-        if (!resItems.ok) { console.log(`⚠️ Itens de ${id} retornou ${resItems.status}`); continue; }
+        if (!resItems.ok) continue;
         const itemsData = await resItems.json();
+        if (!itemsData.results?.length) continue;
 
-        const item = itemsData.results?.find(i => i.price);
-        if (!item) { console.log(`⚠️ Itens de ${id} sem preço`); continue; }
+        const temDesconto10 = (i) => i.price && i.original_price && ((i.original_price - i.price) / i.original_price) >= 0.10;
+
+        // Prioriza item com desconto >= 10%; se não tiver, aceita qualquer um com preço
+        const item = itemsData.results.find(temDesconto10) || itemsData.results.find(i => i.price);
+        if (!item) continue;
 
         // Busca permalink real do item
         let permalink = `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
-        const resItemDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${item.id}`, { headers }, 15000);
-        if (resItemDetalhe.ok) {
-            const detalhe = await resItemDetalhe.json();
+        const resDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${item.id}`, { headers }, 15000);
+        if (resDetalhe.ok) {
+            const detalhe = await resDetalhe.json();
             if (detalhe.permalink) permalink = `${detalhe.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
         }
 
@@ -85,11 +108,11 @@ async function buscarOfertaML(mlToken) {
         const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
         if (!img) continue;
 
-        console.log(`✅ Produto com preço: ${prod.name} — R$ ${preco}`);
-        return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+        console.log(`✅ Produto: ${prod.name} — R$ ${preco}${desconto ? ` (${desconto}% OFF)` : ''}`);
+        return { id: item.id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
     }
 
-    throw new Error('Nenhum dos 5 primeiros produtos tinha itens com preço');
+    throw new Error(`Nenhum produto disponível com os critérios de busca para "${termo}"`);
 }
 
 async function iniciar() {
@@ -101,12 +124,16 @@ async function iniciar() {
         process.exit(1);
     }
 
+    // Lê o último produto postado para evitar repetição
+    const ultimoId = fs.existsSync('ultimo_id.txt') ? fs.readFileSync('ultimo_id.txt', 'utf8').trim() : '';
+    if (ultimoId) console.log(`📌 Último produto postado: ${ultimoId}`);
+
     try {
         const oferta = OFERTAS[0];
         console.log(`🏪 Loja: ${oferta.loja}`);
 
         const mlToken   = await renovarTokenML();
-        const resultado = await buscarOfertaML(mlToken);
+        const resultado = await buscarOfertaML(mlToken, ultimoId);
 
         console.log(`🔗 Link: ${resultado.link}`);
 
@@ -145,6 +172,7 @@ async function iniciar() {
         const json = JSON.parse(res);
 
         if (json.ok) {
+            fs.writeFileSync('ultimo_id.txt', resultado.id);
             console.log('✅ Postado com sucesso!');
         } else {
             throw new Error('Telegram recusou: ' + JSON.stringify(json));
@@ -157,7 +185,7 @@ async function iniciar() {
             const t = process.env.TELEGRAM_TOKEN;
             const c = process.env.TELEGRAM_CHAT_ID;
             if (t && c) {
-                const msgErro = `⚠️ <b>Erro no Bot:</b>\n\n${e.message}\n\n<i>Se o erro for sobre o Token do ML, será necessário gerar um novo refresh_token.</i>`;
+                const msgErro = `⚠️ <b>Erro no Bot:</b>\n\n${e.message}`;
                 execSync(`curl -s --max-time 15 -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${c}" -F text="${msgErro}" -F parse_mode="HTML"`, { timeout: 20000 });
             }
         } catch (err2) {}

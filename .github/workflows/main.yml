@@ -5,6 +5,9 @@ on:
     - cron: '*/15 * * * *'  # A cada 15 minutos
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   postar:
     runs-on: ubuntu-latest
@@ -15,6 +18,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configurar git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Buscar oferta e postar no Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -23,3 +31,12 @@ jobs:
           MELI_CLIENT_SECRET: ${{ secrets.MELI_CLIENT_SECRET }}
           ML_REFRESH: ${{ secrets.ML_REFRESH }}
         run: node atualizar_ofertas.js
+
+      - name: Salvar último produto postado
+        if: success()
+        run: |
+          git add ultimo_id.txt
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: atualiza último produto [skip ci]"
+            git push
+          fi
