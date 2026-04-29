@@ -18,8 +18,15 @@ const CATEGORIAS_FITNESS_ML = ['MLB2438', 'MLB55255', 'MLB35235', 'MLB12711', 'M
 
 function enc(q) { return encodeURIComponent(q); }
 
+function fetchComTimeout(url, opcoes = {}, ms = 15000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, { ...opcoes, signal: controller.signal })
+        .finally(() => clearTimeout(timer));
+}
+
 async function baixarImagem(url, destino) {
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+    const res = await fetchComTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
     if (!res.ok) {
         throw new Error(`O download da imagem falhou com status ${res.status}`);
     }
@@ -32,7 +39,7 @@ async function baixarImagem(url, destino) {
 }
 
 async function renovarTokenML() {
-    const res = await fetch('https://api.mercadolibre.com/oauth/token', {
+    const res = await fetchComTimeout('https://api.mercadolibre.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `grant_type=refresh_token&client_id=${process.env.MELI_CLIENT_ID}&client_secret=${process.env.MELI_CLIENT_SECRET}&refresh_token=${process.env.ML_REFRESH}`
@@ -51,7 +58,7 @@ async function buscarOfertaML(mlToken, produto) {
     const termo = TERMOS_BUSCA[minutos % TERMOS_BUSCA.length];
 
     // Usa a API de Produtos do Catálogo, que permite acesso e retorna itens premium!
-    const resBusca  = await fetch(`https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}`, { headers });
+    const resBusca  = await fetchComTimeout(`https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}`, { headers });
     
     if (!resBusca.ok) {
         throw new Error(`Falha ao buscar produtos da busca (${resBusca.status})`);
@@ -65,11 +72,11 @@ async function buscarOfertaML(mlToken, produto) {
     const ids    = buscaData.results.map(c => c.id);
     const catId  = ids[minutos % ids.length];
 
-    const resProd = await fetch(`https://api.mercadolibre.com/products/${catId}`, { headers });
+    const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${catId}`, { headers });
     if (!resProd.ok) throw new Error(`Product ${catId} falhou`);
     const prod = await resProd.json();
 
-    const resItems = await fetch(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
+    const resItems = await fetchComTimeout(`https://api.mercadolibre.com/products/${catId}/items`, { headers });
     let preco = null, precoOriginal = null;
     let permalink = `https://www.mercadolivre.com.br/p/${catId}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
 
@@ -154,13 +161,13 @@ async function iniciar() {
 
         fs.writeFileSync('msg.txt', msg);
 
-        const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" \
+        const cmd = `curl -s --max-time 30 -X POST "https://api.telegram.org/bot${token}/sendPhoto" \
             -F chat_id="${chatId}" \
             -F photo="@foto.jpg" \
             -F caption="<msg.txt" \
             -F parse_mode="HTML"`;
 
-        const res  = execSync(cmd).toString();
+        const res  = execSync(cmd, { timeout: 35000 }).toString();
         const json = JSON.parse(res);
 
         if (json.ok) {
@@ -178,7 +185,7 @@ async function iniciar() {
             const c = process.env.TELEGRAM_CHAT_ID;
             if (t && c) {
                 const msgErro = `⚠️ <b>O Bot encontrou um erro:</b>\n\n${e.message}\n\n<i>Se o erro for sobre o Token do ML, será necessário gerar um novo refresh_token.</i>`;
-                execSync(`curl -s -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${c}" -F text="${msgErro}" -F parse_mode="HTML"`);
+                execSync(`curl -s --max-time 15 -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${c}" -F text="${msgErro}" -F parse_mode="HTML"`, { timeout: 20000 });
             }
         } catch(err2) {}
 
