@@ -71,12 +71,17 @@ async function buscarOfertaML(mlToken) {
         const item = itemsData.results?.find(i => i.price);
         if (!item) { console.log(`⚠️ Itens de ${id} sem preço`); continue; }
 
+        // Busca permalink real do item
+        let permalink = `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        const resItemDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${item.id}`, { headers }, 15000);
+        if (resItemDetalhe.ok) {
+            const detalhe = await resItemDetalhe.json();
+            if (detalhe.permalink) permalink = `${detalhe.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        }
+
         const preco         = item.price;
         const precoOriginal = item.original_price || null;
         const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
-        const permalink     = item.permalink
-            ? `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`
-            : `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
         const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
         if (!img) continue;
 

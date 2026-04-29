@@ -2,8 +2,7 @@ name: Bot Ofertas Mercado Livre
 
 on:
   schedule:
-    - cron: '0 * * * *'    # Todo início de hora
-    - cron: '30 * * * *'   # Meia hora depois
+    - cron: '*/15 * * * *'  # A cada 15 minutos
   workflow_dispatch:
 
 jobs:
