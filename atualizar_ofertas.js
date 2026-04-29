@@ -45,7 +45,10 @@ async function buscarOfertaML(mlToken) {
     const resBusca = await fetchComTimeout(
         `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=20&access_token=${mlToken}`
     );
-    if (!resBusca.ok) throw new Error(`Falha na busca de itens (${resBusca.status})`);
+    if (!resBusca.ok) {
+        const corpo = await resBusca.text();
+        throw new Error(`Falha na busca de itens (${resBusca.status}): ${corpo}`);
+    }
 
     const buscaData = await resBusca.json();
     if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum item encontrado na busca');
