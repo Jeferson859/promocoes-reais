@@ -39,5 +39,6 @@ jobs:
           git add ultimo_id.txt
           if ! git diff --staged --quiet; then
             git commit -m "chore: atualiza último produto [skip ci]"
+            git pull --rebase
             git push
           fi
