@@ -56,29 +56,33 @@ async function buscarOfertaML(mlToken) {
     const buscaData = await resBusca.json();
     if (!buscaData.results || buscaData.results.length === 0) throw new Error('Nenhum produto encontrado na busca');
 
-    console.log(`🔍 ${buscaData.results.length} produtos encontrados. Campos do 1º:`, JSON.stringify(Object.keys(buscaData.results[0])));
-    console.log(`📦 buy_box_winner do 1º:`, JSON.stringify(buscaData.results[0].buy_box_winner));
-
-    // Busca produto individual até achar um com buy_box_winner e preço
     const ids = buscaData.results.map(p => p.id);
-    for (const id of ids.slice(0, 5)) {
-        const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 15000);
-        if (!resProd.ok) continue;
-        const prod = await resProd.json();
-        if (!prod.buy_box_winner?.price) continue;
 
-        const preco         = prod.buy_box_winner.price;
-        const precoOriginal = prod.buy_box_winner.original_price || null;
+    // Para cada produto, busca os itens reais que têm preço
+    for (const id of ids.slice(0, 5)) {
+        const resProd  = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
+        if (!resProd.ok) { console.log(`⚠️ Produto ${id} retornou ${resProd.status}`); continue; }
+        const prod = await resProd.json();
+
+        const resItems = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}/items`, { headers }, 20000);
+        if (!resItems.ok) { console.log(`⚠️ Itens de ${id} retornou ${resItems.status}`); continue; }
+        const itemsData = await resItems.json();
+
+        const item = itemsData.results?.find(i => i.price);
+        if (!item) { console.log(`⚠️ Itens de ${id} sem preço`); continue; }
+
+        const preco         = item.price;
+        const precoOriginal = item.original_price || null;
         const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
-        const permalink     = `https://www.mercadolivre.com.br/p/${prod.id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        const permalink     = `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
         const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
         if (!img) continue;
 
-        console.log(`✅ Produto com preço encontrado: ${prod.name}`);
+        console.log(`✅ Produto com preço: ${prod.name} — R$ ${preco}`);
         return { titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
     }
 
-    throw new Error('Nenhum dos 5 primeiros produtos tinha preço disponível');
+    throw new Error('Nenhum dos 5 primeiros produtos tinha itens com preço');
 }
 
 async function iniciar() {
