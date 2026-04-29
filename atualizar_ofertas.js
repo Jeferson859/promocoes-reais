@@ -74,7 +74,9 @@ async function buscarOfertaML(mlToken) {
         const preco         = item.price;
         const precoOriginal = item.original_price || null;
         const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
-        const permalink     = `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        const permalink     = item.permalink
+            ? `${item.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`
+            : `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
         const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
         if (!img) continue;
 
