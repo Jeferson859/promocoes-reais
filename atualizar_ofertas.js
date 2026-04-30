@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 const MELI_APP_ID = '7346131242004348';
 const MELI_ID     = 'daje8667974';
 
-const MAX_POR_EXECUCAO = 5; // produtos postados por rodada
+const MAX_POR_EXECUCAO = 1; // produtos postados por rodada
 const MAX_IDS_HISTORICO = 100; // IDs guardados para evitar repetição
 
 const TERMOS_BUSCA = [
