@@ -4,9 +4,8 @@ const { execSync } = require('child_process');
 const MELI_APP_ID = '7346131242004348';
 const MELI_ID     = 'daje8667974';
 
-const OFERTAS = [
-    { loja: 'Mercado Livre', emoji: '🟡', produto: 'fitness', link: null }
-];
+const MAX_POR_EXECUCAO = 5; // produtos postados por rodada
+const MAX_IDS_HISTORICO = 100; // IDs guardados para evitar repetição
 
 const TERMOS_BUSCA = [
     // Suplementos
@@ -29,7 +28,7 @@ function fetchComTimeout(url, opcoes = {}, ms = 15000) {
 }
 
 async function baixarImagem(url, destino) {
-    const res = await fetchComTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+    const res = await fetchComTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (!res.ok) throw new Error(`Download da imagem falhou com status ${res.status}`);
     const arrayBuffer = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -55,9 +54,9 @@ async function renovarTokenML() {
     return data.access_token;
 }
 
-async function buscarPorTermo(headers, termo, ultimoId) {
+async function buscarPorTermo(headers, termo, ultimosIds, limite) {
     const resBusca = await fetchComTimeout(
-        `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}&limit=20`,
+        `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(termo)}&limit=50`,
         { headers },
         30000
     );
@@ -67,11 +66,14 @@ async function buscarPorTermo(headers, termo, ultimoId) {
     }
 
     const buscaData = await resBusca.json();
-    if (!buscaData.results || buscaData.results.length === 0) return null;
+    if (!buscaData.results || buscaData.results.length === 0) return [];
 
-    const ids = buscaData.results.map(p => p.id).filter(id => id !== ultimoId);
+    const ids = buscaData.results.map(p => p.id).filter(id => !ultimosIds.includes(id));
+    const resultados = [];
 
-    for (const id of ids.slice(0, 8)) {
+    for (const id of ids) {
+        if (resultados.length >= limite) break;
+
         const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
         if (!resProd.ok) continue;
         const prod = await resProd.json();
@@ -101,31 +103,70 @@ async function buscarPorTermo(headers, termo, ultimoId) {
         const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
         if (!img) continue;
 
-        console.log(`✅ Produto: ${prod.name} — R$ ${preco}${desconto ? ` (${desconto}% OFF)` : ''}`);
-        return { id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img };
+        console.log(`✅ Produto encontrado: ${prod.name} — R$ ${preco}${desconto ? ` (${desconto}% OFF)` : ''}`);
+        resultados.push({ id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img });
     }
 
-    return null;
+    return resultados;
 }
 
-async function buscarOfertaML(mlToken, ultimoId) {
+async function buscarOfertas(mlToken, ultimosIds) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
     const slot    = Math.floor(Date.now() / (15 * 60 * 1000));
+    const todos   = [];
 
-    // Tenta até 5 termos diferentes; se um falhar, passa para o próximo
-    for (let i = 0; i < 5; i++) {
-        const termo = TERMOS_BUSCA[(slot + i) % TERMOS_BUSCA.length];
-        console.log(`🔎 Buscando: "${termo}"`);
+    for (let i = 0; i < TERMOS_BUSCA.length && todos.length < MAX_POR_EXECUCAO; i++) {
+        const termo    = TERMOS_BUSCA[(slot + i) % TERMOS_BUSCA.length];
+        const faltam   = MAX_POR_EXECUCAO - todos.length;
+        console.log(`🔎 Buscando: "${termo}" (faltam ${faltam} produtos)`);
         try {
-            const resultado = await buscarPorTermo(headers, termo, ultimoId);
-            if (resultado) return resultado;
-            console.log(`⚠️ Sem produto válido para "${termo}", tentando próximo...`);
+            const encontrados = await buscarPorTermo(headers, termo, [...ultimosIds, ...todos.map(p => p.id)], faltam);
+            todos.push(...encontrados);
+            if (encontrados.length === 0) console.log(`⚠️ Sem produto válido para "${termo}"`);
         } catch (e) {
-            console.log(`⚠️ Erro no termo "${termo}": ${e.message}, tentando próximo...`);
+            console.log(`⚠️ Erro no termo "${termo}": ${e.message}`);
         }
+
+        if (todos.length >= MAX_POR_EXECUCAO) break;
     }
 
-    throw new Error('Nenhum produto encontrado após 5 tentativas com termos diferentes');
+    if (todos.length === 0) throw new Error('Nenhum produto encontrado em nenhum termo');
+    return todos;
+}
+
+async function postarProduto(token, chatId, resultado) {
+    await baixarImagem(resultado.thumbnail, 'foto.jpg');
+
+    let msg = `🟡 <b>MERCADO LIVRE</b>\n`;
+    msg += `━━━━━━━━━━━━━━━\n`;
+    msg += `🔥 <b>OFERTA!</b>\n\n`;
+    msg += `<b>${resultado.titulo}</b>\n\n`;
+
+    if (resultado.preco) {
+        const precoFmt = resultado.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        if (resultado.precoOriginal && resultado.desconto > 0) {
+            const origFmt = resultado.precoOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            msg += `<s>R$ ${origFmt}</s>\n`;
+            msg += `💰 <b>R$ ${precoFmt}</b> (${resultado.desconto}% OFF)\n\n`;
+        } else {
+            msg += `💰 <b>R$ ${precoFmt}</b>\n\n`;
+        }
+    } else {
+        msg += `💰 <b>Clique e veja o melhor preço!</b>\n\n`;
+    }
+
+    msg += `🛒 <a href="${resultado.link}">Compre aqui</a>`;
+    fs.writeFileSync('msg.txt', msg);
+
+    const cmd = `curl -s --max-time 30 -X POST "https://api.telegram.org/bot${token}/sendPhoto" \
+        -F chat_id="${chatId}" \
+        -F photo="@foto.jpg" \
+        -F caption="<msg.txt" \
+        -F parse_mode="HTML"`;
+
+    const res  = execSync(cmd, { timeout: 35000 }).toString();
+    const json = JSON.parse(res);
+    if (!json.ok) throw new Error('Telegram recusou: ' + JSON.stringify(json));
 }
 
 async function iniciar() {
@@ -137,69 +178,49 @@ async function iniciar() {
         process.exit(1);
     }
 
-    // Lê o último produto postado para evitar repetição
-    const ultimoId = fs.existsSync('ultimo_id.txt') ? fs.readFileSync('ultimo_id.txt', 'utf8').trim() : '';
-    if (ultimoId) console.log(`📌 Último produto postado: ${ultimoId}`);
+    // Lê histórico de IDs postados para evitar repetição
+    const ultimosIds = fs.existsSync('ultimo_id.txt')
+        ? fs.readFileSync('ultimo_id.txt', 'utf8').trim().split(',').filter(Boolean)
+        : [];
+    if (ultimosIds.length) console.log(`📌 Histórico: ${ultimosIds.length} produtos já postados`);
 
     try {
-        const oferta = OFERTAS[0];
-        console.log(`🏪 Loja: ${oferta.loja}`);
+        const mlToken  = await renovarTokenML();
+        const produtos = await buscarOfertas(mlToken, ultimosIds);
 
-        const mlToken   = await renovarTokenML();
-        const resultado = await buscarOfertaML(mlToken, ultimoId);
+        console.log(`\n📦 ${produtos.length} produto(s) encontrado(s). Postando...\n`);
 
-        console.log(`🔗 Link: ${resultado.link}`);
-
-        await baixarImagem(resultado.thumbnail, 'foto.jpg');
-        console.log('📸 Imagem baixada!');
-
-        let msg = `${oferta.emoji} <b>${oferta.loja.toUpperCase()}</b>\n`;
-        msg += `━━━━━━━━━━━━━━━\n`;
-        msg += `🔥 <b>OFERTA DO DIA!</b>\n\n`;
-        msg += `<b>${resultado.titulo}</b>\n\n`;
-
-        if (resultado.preco) {
-            const precoFmt = resultado.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-            if (resultado.precoOriginal && resultado.desconto > 0) {
-                const origFmt = resultado.precoOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                msg += `<s>R$ ${origFmt}</s>\n`;
-                msg += `💰 <b>R$ ${precoFmt}</b> (${resultado.desconto}% OFF)\n\n`;
-            } else {
-                msg += `💰 <b>R$ ${precoFmt}</b>\n\n`;
+        const idsPostados = [];
+        for (const produto of produtos) {
+            try {
+                console.log(`🔗 Postando: ${produto.titulo}`);
+                await postarProduto(token, chatId, produto);
+                idsPostados.push(produto.id);
+                console.log(`✅ Postado!\n`);
+                // Pequena pausa entre posts para não sobrecarregar o Telegram
+                if (produtos.indexOf(produto) < produtos.length - 1) {
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            } catch (e) {
+                console.error(`❌ Falha ao postar "${produto.titulo}": ${e.message}`);
             }
-        } else {
-            msg += `💰 <b>Clique e veja o melhor preço!</b>\n\n`;
         }
 
-        msg += `🛒 <a href="${resultado.link}">Compre aqui</a>`;
+        if (idsPostados.length === 0) throw new Error('Nenhum produto foi postado com sucesso');
 
-        fs.writeFileSync('msg.txt', msg);
-
-        const cmd = `curl -s --max-time 30 -X POST "https://api.telegram.org/bot${token}/sendPhoto" \
-            -F chat_id="${chatId}" \
-            -F photo="@foto.jpg" \
-            -F caption="<msg.txt" \
-            -F parse_mode="HTML"`;
-
-        const res  = execSync(cmd, { timeout: 35000 }).toString();
-        const json = JSON.parse(res);
-
-        if (json.ok) {
-            fs.writeFileSync('ultimo_id.txt', resultado.id);
-            console.log('✅ Postado com sucesso!');
-        } else {
-            throw new Error('Telegram recusou: ' + JSON.stringify(json));
-        }
+        // Salva histórico (mantém os últimos MAX_IDS_HISTORICO)
+        const novoHistorico = [...ultimosIds, ...idsPostados].slice(-MAX_IDS_HISTORICO);
+        fs.writeFileSync('ultimo_id.txt', novoHistorico.join(','));
+        console.log(`✅ ${idsPostados.length} produto(s) postado(s) com sucesso!`);
 
     } catch (e) {
         console.error('❌ Erro: ' + e.message);
 
         try {
-            const t = process.env.TELEGRAM_TOKEN;
             const adminId = process.env.TELEGRAM_ADMIN_CHAT_ID;
-            if (t && adminId) {
+            if (token && adminId) {
                 fs.writeFileSync('erro.txt', `⚠️ <b>Erro no Bot:</b>\n\n${e.message}`);
-                execSync(`curl -s --max-time 15 -X POST "https://api.telegram.org/bot${t}/sendMessage" -F chat_id="${adminId}" -F text="<erro.txt" -F parse_mode="HTML"`, { timeout: 20000 });
+                execSync(`curl -s --max-time 15 -X POST "https://api.telegram.org/bot${token}/sendMessage" -F chat_id="${adminId}" -F text="<erro.txt" -F parse_mode="HTML"`, { timeout: 20000 });
             }
         } catch (err2) {}
 
