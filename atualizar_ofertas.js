@@ -104,7 +104,7 @@ async function buscarPorTermo(headers, termo, ultimosIds, limite) {
         if (!img) continue;
 
         console.log(`✅ Produto encontrado: ${prod.name} — R$ ${preco}${desconto ? ` (${desconto}% OFF)` : ''}`);
-        resultados.push({ id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img });
+        resultados.push({ id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img, freteGratis: !!(item.shipping && item.shipping.free_shipping) });
     }
 
     return resultados;
@@ -132,6 +132,16 @@ async function buscarOfertas(mlToken, ultimosIds) {
 
     if (todos.length === 0) throw new Error('Nenhum produto encontrado em nenhum termo');
     return todos;
+}
+
+// Categoria define o tom da narracao do video (suplemento fala de treino,
+// equipamento fala de academia em casa, e assim por diante).
+function categoriaDe(titulo) {
+    const t = (titulo || '').toLowerCase();
+    if (/whey|creatina|glutamina|albumina|pre.?treino|bcaa|vitamina|colageno|termog/.test(t)) return 'suplemento';
+    if (/halter|banco|barra|esteira|bike|anilha|kettlebell|eliptico|supino/.test(t))          return 'equipamento';
+    if (/legging|blusa|camiseta|short|top |conjunto|regata|tenis/.test(t))                     return 'moda';
+    return 'acessorio';
 }
 
 async function postarProduto(token, chatId, resultado) {
@@ -196,6 +206,21 @@ async function iniciar() {
                 console.log(`🔗 Postando: ${produto.titulo}`);
                 await postarProduto(token, chatId, produto);
                 idsPostados.push(produto.id);
+
+                // --- entrega a oferta para o gerador de video ---
+                // foto.jpg ja foi baixada por postarProduto, entao o Python reaproveita.
+                fs.writeFileSync('produto_do_dia.json', JSON.stringify({
+                    id:             produto.id,
+                    titulo:         produto.titulo,
+                    preco:          produto.preco,
+                    preco_original: produto.precoOriginal,
+                    fotos:          [produto.thumbnail],
+                    foto_local:     'foto.jpg',
+                    link:           produto.link,
+                    frete_gratis:   !!produto.freteGratis,
+                    categoria:      categoriaDe(produto.titulo)
+                }, null, 2));
+                console.log('🎬 produto_do_dia.json gravado para o gerador de vídeo');
                 console.log(`✅ Postado!\n`);
                 // Pequena pausa entre posts para não sobrecarregar o Telegram
                 if (produtos.indexOf(produto) < produtos.length - 1) {
