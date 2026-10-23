@@ -7,17 +7,31 @@ const MELI_ID     = 'daje8667974';
 const MAX_POR_EXECUCAO = 1; // produtos postados por rodada
 const MAX_IDS_HISTORICO = 100; // IDs guardados para evitar repetição
 
+// Só posta oferta com pelo menos este desconto (pode trocar pelo secret/env DESCONTO_MINIMO)
+const DESCONTO_MINIMO = Number(process.env.DESCONTO_MINIMO || 25);
+const TERMOS_POR_RODADA = 4;   // termos avaliados por execução (pega o MAIOR desconto entre eles)
+const PRODUTOS_POR_TERMO = 15; // produtos avaliados por termo
+
 const TERMOS_BUSCA = [
     // Suplementos
-    'whey protein', 'creatina', 'colageno hidrolisado', 'vitamina c', 'omega 3', 'pre treino',
-    'bcaa', 'glutamina', 'proteina vegana', 'albumina',
-    // Roupas e acessórios
-    'tenis corrida', 'legging fitness', 'bermuda academia', 'camiseta dry fit', 'top fitness',
-    // Equipamentos
-    'halteres', 'kettlebell', 'corda pular', 'colchonete yoga', 'faixa elastica resistencia',
-    'barra musculacao', 'anilha academia', 'step aerobico',
-    // Tecnologia fitness
-    'smartwatch fitness', 'monitor frequencia cardiaca', 'bike ergometrica',
+    'whey protein', 'whey isolado', 'creatina', 'creatina monohidratada', 'colageno hidrolisado',
+    'vitamina c', 'vitamina d', 'omega 3', 'multivitaminico', 'magnesio', 'pre treino', 'cafeina capsula',
+    'bcaa', 'glutamina', 'proteina vegana', 'albumina', 'hipercalorico', 'termogenico',
+    'barra de proteina', 'pasta de amendoim', 'beta alanina', 'coqueteleira',
+    // Roupas e calçados
+    'tenis corrida', 'tenis academia', 'legging fitness', 'bermuda academia', 'camiseta dry fit',
+    'top fitness', 'conjunto fitness feminino', 'regata academia', 'meia compressao', 'jaqueta corta vento',
+    // Equipamentos para treinar em casa
+    'halteres', 'kit halteres', 'kettlebell', 'corda pular', 'colchonete yoga', 'tapete yoga',
+    'faixa elastica resistencia', 'mini band', 'barra musculacao', 'anilha academia', 'step aerobico',
+    'banco supino', 'barra fixa porta', 'roda abdominal', 'hand grip', 'caneleira peso',
+    'bola suica', 'rolo liberacao miofascial', 'elastico extensor', 'paralela flexao',
+    // Equipamentos grandes
+    'bike ergometrica', 'esteira eletrica', 'eliptico', 'estacao musculacao', 'bicicleta spinning',
+    // Acessórios e tecnologia
+    'smartwatch fitness', 'monitor frequencia cardiaca', 'fone bluetooth esportivo', 'garrafa termica academia',
+    'bolsa academia', 'mochila academia', 'luva academia', 'cinto musculacao', 'balanca bioimpedancia',
+    'joelheira esportiva', 'munhequeira', 'massageador muscular', 'squeeze academia',
 ];
 
 function fetchComTimeout(url, opcoes = {}, ms = 15000) {
@@ -68,12 +82,10 @@ async function buscarPorTermo(headers, termo, ultimosIds, limite) {
     const buscaData = await resBusca.json();
     if (!buscaData.results || buscaData.results.length === 0) return [];
 
-    const ids = buscaData.results.map(p => p.id).filter(id => !ultimosIds.includes(id));
-    const resultados = [];
+    const ids = buscaData.results.map(p => p.id).filter(id => !ultimosIds.includes(id)).slice(0, limite);
+    const candidatos = [];
 
     for (const id of ids) {
-        if (resultados.length >= limite) break;
-
         const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
         if (!resProd.ok) continue;
         const prod = await resProd.json();
@@ -83,55 +95,61 @@ async function buscarPorTermo(headers, termo, ultimosIds, limite) {
         const itemsData = await resItems.json();
         if (!itemsData.results?.length) continue;
 
-        const temDesconto10 = (i) => i.price && i.original_price && ((i.original_price - i.price) / i.original_price) >= 0.10;
-        const item = itemsData.results.find(temDesconto10) || itemsData.results.find(i => i.price);
+        // o anúncio com MAIOR desconto entre os vendedores do produto
+        const descontoDe = (i) => (i.price && i.original_price) ? (i.original_price - i.price) / i.original_price : 0;
+        const item = [...itemsData.results].filter(i => i.price).sort((a, b) => descontoDe(b) - descontoDe(a))[0];
         if (!item) continue;
-
-        const itemId = item.id || (itemsData.results[0] && itemsData.results[0].id);
-        let permalink = `https://www.mercadolivre.com.br/p/${id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
-        if (itemId) {
-            const resDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${itemId}`, { headers }, 15000);
-            if (resDetalhe.ok) {
-                const detalhe = await resDetalhe.json();
-                if (detalhe.permalink) permalink = `${detalhe.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
-            }
-        }
 
         const preco         = item.price;
         const precoOriginal = item.original_price || null;
-        const desconto      = precoOriginal ? Math.round(((precoOriginal - preco) / precoOriginal) * 100) : null;
+        const desconto      = precoOriginal ? Math.round(descontoDe(item) * 100) : 0;
         const img           = (prod.pictures?.[0]?.url || '').replace(/-[A-Z]\.jpg$/, '-J.jpg');
-        if (!img) continue;
+        if (!img || desconto < DESCONTO_MINIMO) continue;
 
-        console.log(`✅ Produto encontrado: ${prod.name} — R$ ${preco}${desconto ? ` (${desconto}% OFF)` : ''}`);
-        resultados.push({ id, titulo: prod.name, preco, precoOriginal, desconto, link: permalink, thumbnail: img, freteGratis: !!(item.shipping && item.shipping.free_shipping) });
+        console.log(`  • ${desconto}% OFF — ${prod.name} — R$ ${preco}`);
+        candidatos.push({ id, itemId: item.id, titulo: prod.name, preco, precoOriginal, desconto, thumbnail: img,
+                          freteGratis: !!(item.shipping && item.shipping.free_shipping) });
     }
 
-    return resultados;
+    return candidatos;
+}
+
+// Monta o link de afiliado só para os produtos escolhidos (economiza chamadas na API)
+async function linkAfiliado(headers, cand) {
+    let permalink = `https://www.mercadolivre.com.br/p/${cand.id}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+    if (cand.itemId) {
+        const resDetalhe = await fetchComTimeout(`https://api.mercadolibre.com/items/${cand.itemId}`, { headers }, 15000);
+        if (resDetalhe.ok) {
+            const detalhe = await resDetalhe.json();
+            if (detalhe.permalink) permalink = `${detalhe.permalink}?matt_tool=${MELI_APP_ID}&utm_campaign=${MELI_ID}`;
+        }
+    }
+    return permalink;
 }
 
 async function buscarOfertas(mlToken, ultimosIds) {
     const headers = { 'Authorization': `Bearer ${mlToken}` };
     const slot    = Math.floor(Date.now() / (15 * 60 * 1000));
-    const todos   = [];
+    const candidatos = [];
 
-    for (let i = 0; i < TERMOS_BUSCA.length && todos.length < MAX_POR_EXECUCAO; i++) {
-        const termo    = TERMOS_BUSCA[(slot + i) % TERMOS_BUSCA.length];
-        const faltam   = MAX_POR_EXECUCAO - todos.length;
-        console.log(`🔎 Buscando: "${termo}" (faltam ${faltam} produtos)`);
+    // avalia alguns termos por rodada, girando a lista, e fica com os MAIORES descontos
+    for (let i = 0; i < TERMOS_POR_RODADA; i++) {
+        const termo = TERMOS_BUSCA[(slot * TERMOS_POR_RODADA + i) % TERMOS_BUSCA.length];
+        console.log(`🔎 Buscando: "${termo}" (mínimo ${DESCONTO_MINIMO}% OFF)`);
         try {
-            const encontrados = await buscarPorTermo(headers, termo, [...ultimosIds, ...todos.map(p => p.id)], faltam);
-            todos.push(...encontrados);
-            if (encontrados.length === 0) console.log(`⚠️ Sem produto válido para "${termo}"`);
+            const vistos = [...ultimosIds, ...candidatos.map(p => p.id)];
+            const encontrados = await buscarPorTermo(headers, termo, vistos, PRODUTOS_POR_TERMO);
+            candidatos.push(...encontrados);
+            if (encontrados.length === 0) console.log(`⚠️ Nada com ${DESCONTO_MINIMO}%+ em "${termo}"`);
         } catch (e) {
             console.log(`⚠️ Erro no termo "${termo}": ${e.message}`);
         }
-
-        if (todos.length >= MAX_POR_EXECUCAO) break;
     }
 
-    if (todos.length === 0) throw new Error('Nenhum produto encontrado em nenhum termo');
-    return todos;
+    candidatos.sort((a, b) => b.desconto - a.desconto);
+    const escolhidos = candidatos.slice(0, MAX_POR_EXECUCAO);
+    for (const c of escolhidos) c.link = await linkAfiliado(headers, c);
+    return escolhidos;
 }
 
 // Categoria define o tom da narracao do video (suplemento fala de treino,
@@ -197,6 +215,11 @@ async function iniciar() {
     try {
         const mlToken  = await renovarTokenML();
         const produtos = await buscarOfertas(mlToken, ultimosIds);
+        if (produtos.length === 0) {
+            // rodada sem oferta boa não é erro: só não posta (próxima rodada tenta outros termos)
+            console.log(`😴 Nenhuma oferta com ${DESCONTO_MINIMO}%+ nesta rodada. Nada postado.`);
+            return;
+        }
 
         console.log(`\n📦 ${produtos.length} produto(s) encontrado(s). Postando...\n`);
 
