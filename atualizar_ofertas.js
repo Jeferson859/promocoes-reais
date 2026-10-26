@@ -85,6 +85,12 @@ async function renovarTokenML() {
         throw new Error(msg);
     }
     console.log('✅ Token ML renovado!');
+    // o ML devolve um refresh_token novo a cada renovação: o passo seguinte do workflow
+    // grava esse valor no secret ML_REFRESH (o token nunca vai para o log nem para o git)
+    if (data.refresh_token && data.refresh_token !== process.env.ML_REFRESH) {
+        fs.writeFileSync('novo_refresh.txt', data.refresh_token);
+        console.log('🔑 Refresh token novo recebido (o workflow salva no secret)');
+    }
     return data.access_token;
 }
 
