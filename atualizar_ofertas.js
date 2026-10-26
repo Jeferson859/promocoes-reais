@@ -9,8 +9,8 @@ const MAX_IDS_HISTORICO = 100; // IDs guardados para evitar repetição
 
 // Só posta oferta com pelo menos este desconto (pode trocar pelo secret/env DESCONTO_MINIMO)
 const DESCONTO_MINIMO = Number(process.env.DESCONTO_MINIMO || 25);
-const TERMOS_POR_RODADA = 4;   // termos avaliados por execução (pega o MAIOR desconto entre eles)
-const PRODUTOS_POR_TERMO = 15; // produtos avaliados por termo
+const TERMOS_POR_RODADA = 8;   // termos avaliados por execução (pega o MAIOR desconto entre eles)
+const PRODUTOS_POR_TERMO = 25; // produtos avaliados por termo
 
 const TERMOS_BUSCA = [
     // Suplementos
@@ -32,6 +32,19 @@ const TERMOS_BUSCA = [
     'smartwatch fitness', 'monitor frequencia cardiaca', 'fone bluetooth esportivo', 'garrafa termica academia',
     'bolsa academia', 'mochila academia', 'luva academia', 'cinto musculacao', 'balanca bioimpedancia',
     'joelheira esportiva', 'munhequeira', 'massageador muscular', 'squeeze academia',
+    // Mais termos (26/10) para ter oferta boa em mais rodadas
+    'whey concentrado', 'whey 900g', 'creatina 1kg', 'creatina gummy', 'pre treino em po', 'cafeina 420mg',
+    'termogenico capsula', 'colageno verisol', 'proteina isolada', 'shake proteico', 'snack proteico',
+    'pasta de amendoim integral', 'maltodextrina', 'dextrose', 'zma', 'melatonina', 'complexo b',
+    'tenis caminhada feminino', 'tenis corrida masculino', 'tenis treino crossfit', 'meia esportiva kit',
+    'shorts corrida', 'calca legging', 'macaquinho fitness', 'top nadador', 'regata dry fit', 'moletom academia',
+    'bone esportivo', 'oculos esportivo', 'pochete corrida', 'braçadeira celular corrida',
+    'halter regulavel', 'anilha emborrachada', 'barra w', 'puxador costas', 'aparelho abdominal',
+    'prancha equilibrio', 'disco de equilibrio', 'tornozeleira peso', 'elastico glúteo', 'kit elasticos treino',
+    'gaiola agachamento', 'rack musculacao', 'bike spinning', 'remo seco', 'mini stepper', 'trampolim jump',
+    'cama elastica fitness', 'colchonete academia', 'tapete eva academia', 'bola de pilates 65cm',
+    'luva crossfit', 'strap musculacao', 'joelheira levantamento', 'coqueteleira eletrica', 'garrafa 2 litros academia',
+    'pistola massagem', 'relogio corrida gps', 'pulseira inteligente', 'fone conducao ossea',
 ];
 
 function fetchComTimeout(url, opcoes = {}, ms = 15000) {
