@@ -5,7 +5,7 @@ const MELI_APP_ID = '7346131242004348';
 const MELI_ID     = 'daje8667974';
 
 const MAX_POR_EXECUCAO = 3; // produtos postados por rodada
-const MAX_IDS_HISTORICO = 300; // IDs guardados para evitar repetição
+const MAX_IDS_HISTORICO = 600; // IDs + chaves de título guardados para evitar repetição
 
 // Só posta oferta com pelo menos este desconto (pode trocar pelo secret/env DESCONTO_MINIMO)
 const DESCONTO_MINIMO = Number(process.env.DESCONTO_MINIMO || 25);
@@ -46,6 +46,13 @@ const TERMOS_BUSCA = [
     'luva crossfit', 'strap musculacao', 'joelheira levantamento', 'coqueteleira eletrica', 'garrafa 2 litros academia',
     'pistola massagem', 'relogio corrida gps', 'pulseira inteligente', 'fone conducao ossea',
 ];
+
+// O mesmo produto aparece com IDs de catálogo diferentes: o histórico guarda também
+// uma chave do título ("T:tenis-feminino-vili-olimp...") no próprio ultimo_id.txt.
+function chaveTitulo(titulo) {
+    return 'T:' + (titulo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+}
 
 function fetchComTimeout(url, opcoes = {}, ms = 15000) {
     const controller = new AbortController();
@@ -165,7 +172,7 @@ async function buscarOfertas(mlToken, ultimosIds) {
     const escolhidos = [], titulos = new Set(), termos = new Set();
     for (const c of candidatos) {
         const t = (c.titulo || '').toLowerCase().replace(/\s+/g, ' ').trim();
-        if (titulos.has(t) || termos.has(c.termo)) continue;
+        if (titulos.has(t) || termos.has(c.termo) || ultimosIds.includes(chaveTitulo(c.titulo))) continue;
         titulos.add(t); termos.add(c.termo); escolhidos.push(c);
         if (escolhidos.length >= MAX_POR_EXECUCAO) break;
     }
@@ -249,7 +256,7 @@ async function iniciar() {
             try {
                 console.log(`🔗 Postando: ${produto.titulo}`);
                 await postarProduto(token, chatId, produto);
-                idsPostados.push(produto.id);
+                idsPostados.push(produto.id, chaveTitulo(produto.titulo));
 
                 // --- entrega a oferta para o gerador de video (so a 1a, a de maior desconto) ---
                 // foto.jpg ja foi baixada por postarProduto, entao o Python reaproveita.
@@ -280,7 +287,7 @@ async function iniciar() {
         // Salva histórico (mantém os últimos MAX_IDS_HISTORICO)
         const novoHistorico = [...ultimosIds, ...idsPostados].slice(-MAX_IDS_HISTORICO);
         fs.writeFileSync('ultimo_id.txt', novoHistorico.join(','));
-        console.log(`✅ ${idsPostados.length} produto(s) postado(s) com sucesso!`);
+        console.log(`✅ ${idsPostados.length / 2} produto(s) postado(s) com sucesso!`);
 
     } catch (e) {
         console.error('❌ Erro: ' + e.message);
