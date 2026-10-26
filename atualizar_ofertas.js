@@ -4,8 +4,8 @@ const { execSync } = require('child_process');
 const MELI_APP_ID = '7346131242004348';
 const MELI_ID     = 'daje8667974';
 
-const MAX_POR_EXECUCAO = 1; // produtos postados por rodada
-const MAX_IDS_HISTORICO = 100; // IDs guardados para evitar repetição
+const MAX_POR_EXECUCAO = 3; // produtos postados por rodada
+const MAX_IDS_HISTORICO = 300; // IDs guardados para evitar repetição
 
 // Só posta oferta com pelo menos este desconto (pode trocar pelo secret/env DESCONTO_MINIMO)
 const DESCONTO_MINIMO = Number(process.env.DESCONTO_MINIMO || 25);
@@ -152,6 +152,7 @@ async function buscarOfertas(mlToken, ultimosIds) {
         try {
             const vistos = [...ultimosIds, ...candidatos.map(p => p.id)];
             const encontrados = await buscarPorTermo(headers, termo, vistos, PRODUTOS_POR_TERMO);
+            encontrados.forEach(p => { p.termo = termo; });
             candidatos.push(...encontrados);
             if (encontrados.length === 0) console.log(`⚠️ Nada com ${DESCONTO_MINIMO}%+ em "${termo}"`);
         } catch (e) {
@@ -160,7 +161,14 @@ async function buscarOfertas(mlToken, ultimosIds) {
     }
 
     candidatos.sort((a, b) => b.desconto - a.desconto);
-    const escolhidos = candidatos.slice(0, MAX_POR_EXECUCAO);
+    // o mesmo produto aparece com IDs de catálogo diferentes: não repete título nem termo na mesma rodada
+    const escolhidos = [], titulos = new Set(), termos = new Set();
+    for (const c of candidatos) {
+        const t = (c.titulo || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        if (titulos.has(t) || termos.has(c.termo)) continue;
+        titulos.add(t); termos.add(c.termo); escolhidos.push(c);
+        if (escolhidos.length >= MAX_POR_EXECUCAO) break;
+    }
     for (const c of escolhidos) c.link = await linkAfiliado(headers, c);
     return escolhidos;
 }
@@ -243,9 +251,9 @@ async function iniciar() {
                 await postarProduto(token, chatId, produto);
                 idsPostados.push(produto.id);
 
-                // --- entrega a oferta para o gerador de video ---
+                // --- entrega a oferta para o gerador de video (so a 1a, a de maior desconto) ---
                 // foto.jpg ja foi baixada por postarProduto, entao o Python reaproveita.
-                fs.writeFileSync('produto_do_dia.json', JSON.stringify({
+                if (idsPostados.length === 1) fs.writeFileSync('produto_do_dia.json', JSON.stringify({
                     id:             produto.id,
                     titulo:         produto.titulo,
                     preco:          produto.preco,
