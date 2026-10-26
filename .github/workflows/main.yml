@@ -33,6 +33,20 @@ jobs:
           ML_REFRESH: ${{ secrets.ML_REFRESH }}
         run: node atualizar_ofertas.js
 
+      - name: Guardar refresh token novo do ML
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -s novo_refresh.txt ]; then
+            if [ -z "$GH_TOKEN" ]; then
+              echo "⚠️ Falta o secret GH_PAT: o refresh token novo NÃO foi salvo"
+            else
+              gh secret set ML_REFRESH --repo "$GITHUB_REPOSITORY" < novo_refresh.txt && echo "🔑 ML_REFRESH atualizado"
+            fi
+            rm -f novo_refresh.txt
+          fi
+
       - name: Salvar último produto postado
         if: success()
         run: |
