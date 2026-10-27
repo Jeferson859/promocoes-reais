@@ -115,6 +115,11 @@ async function buscarPorTermo(headers, termo, ultimosIds, limite) {
         const resProd = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}`, { headers }, 20000);
         if (!resProd.ok) continue;
         const prod = await resProd.json();
+        // o termo "vitamina d" chegou a trazer um LIVRO: fica só com produto físico do nicho
+        if (/BOOK|MAGAZINE|COMIC|MOVIE|MUSIC|VIDEO_GAME|SOFTWARE/i.test(prod.domain_id || '')) {
+            console.log(`  ⏭️ Fora do nicho (${prod.domain_id}): ${prod.name}`);
+            continue;
+        }
 
         const resItems = await fetchComTimeout(`https://api.mercadolibre.com/products/${id}/items`, { headers }, 20000);
         if (!resItems.ok) continue;
